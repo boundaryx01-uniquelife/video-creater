@@ -1,20 +1,60 @@
 import React from 'react';
-import { AbsoluteFill, interpolate, random, useCurrentFrame, useVideoConfig } from 'remotion';
+import { AbsoluteFill, interpolate, random, useCurrentFrame } from 'remotion';
 import { MODES, ModeSpec, Rail } from './config';
 import { FONT_UI, Photo, TNUM, clamp, easeInOut, easeOut, fitFont, lerp, prog } from '../lib/common';
+import { useLayout, wrapTitle } from '../lib/layout';
 
 export type Slots = { intro?: string; card?: string };
 const img = (m: ModeSpec, k: 'L' | 'P', n: number) => `media/${m.id}_${k}${n}.jpg`;
-const useGeo = () => { const { width: W, height: H } = useVideoConfig(); return { W, H, PAD: Math.round(W * 0.0625), PW: Math.round(H * 0.75) }; };
+const useGeo = () => { const { W, H, PAD, portrait } = useLayout(); return { W, H, PAD, PW: Math.round(H * 0.75), portrait }; };
 const Mask: React.FC<{ p: number; children: React.ReactNode; style?: React.CSSProperties }> = ({ p, children, style }) => (
   <div style={{ overflow: 'hidden', paddingBottom: '0.08em', ...style }}><div style={{ transform: `translateY(${(1 - p) * 108}%)` }}>{children}</div></div>
 );
 
 /* ---------- 인트로 ---------- */
 export const ModeIntro: React.FC<{ mode: string; spec?: ModeSpec; photos?: Slots }> = ({ mode, spec, photos }) => {
-  const m = spec ?? MODES[mode], it = m.intro, f = useCurrentFrame(); const { W, H, PAD } = useGeo();
+  const m = spec ?? MODES[mode], it = m.intro, f = useCurrentFrame(); const { W, H, PAD, portrait } = useGeo();
   const a = (d: number, dur = 22) => prog(f, d, dur, easeOut);
-  const lines = it.title.split('\n'), longest = lines.reduce((x, y) => (x.length > y.length ? x : y));
+  const lines = portrait ? wrapTitle(it.title.split('\n'), 7) : it.title.split('\n'), longest = lines.reduce((x, y) => (Array.from(x).length > Array.from(y).length ? x : y));
+  if (portrait) {
+    const fs = Math.min(Math.round(H * (it.layout === 'photo' ? 0.085 : 0.075)), fitFont(longest, 999, W - PAD * 2 + 8, 0.95));
+    const kick = (col: string) => <div style={{ display: 'flex', alignItems: 'center', gap: 18, opacity: a(2), fontSize: 28, fontWeight: 800, letterSpacing: '0.1em', color: col }}><div style={{ width: lerp(0, 70, a(2)), height: 8, background: m.accent, flex: 'none' }} />{it.kicker}</div>;
+    const titleBlock = (col: string, ls = '-0.05em') => (<>{lines.map((l, i) => <Mask key={i} p={a(8 + i * 6, 26)}><div style={{ fontSize: fs, fontWeight: 900, letterSpacing: ls, lineHeight: 1.04, whiteSpace: 'nowrap', color: col }}>{l}</div></Mask>)}
+      <div style={{ fontSize: 42, fontWeight: 700, marginTop: 26, opacity: a(24) * 0.92, color: col, lineHeight: 1.3 }}>{it.sub}</div></>);
+    const rows = (lineCol: string, dim = 0.7) => <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>{it.chips.map((c, i) => (
+      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 24, borderTop: `2px solid ${lineCol}`, paddingTop: 14, opacity: a(30 + i * 5), transform: `translateY(${(1 - a(30 + i * 5)) * 18}px)` }}>
+        <span style={{ fontSize: 26, fontWeight: 700, opacity: dim, flex: 'none' }}>{c.k}</span><span style={{ fontSize: 38, fontWeight: 800, letterSpacing: '-0.02em', textAlign: 'right', ...TNUM }}>{c.v}</span></div>))}</div>;
+    if (it.layout === 'photo') return (
+      <AbsoluteFill style={{ background: m.ink, fontFamily: FONT_UI, color: '#fff', overflow: 'hidden' }}>
+        <Photo src={photos?.intro ?? img(m, 'L', 1)} scale={interpolate(f, [0, 90], [1.14, 1.04])} style={{ filter: 'brightness(.8)' }} />
+        <AbsoluteFill style={{ background: 'linear-gradient(to top, rgba(0,0,0,.85) 0%, rgba(0,0,0,.45) 45%, rgba(0,0,0,.3) 100%)' }} />
+        <div style={{ position: 'absolute', left: PAD, right: PAD, top: Math.round(H * 0.06) }}>{kick('#fff')}</div>
+        <div style={{ position: 'absolute', left: PAD - 6, right: PAD, bottom: H * 0.27 }}>{titleBlock('#fff')}</div>
+        <div style={{ position: 'absolute', left: PAD, right: PAD, bottom: H * 0.075 }}>{rows('rgba(255,255,255,.5)')}</div>
+      </AbsoluteFill>);
+    if (it.layout === 'split') {
+      const isA = it.panel === 'accent', bg = isA ? m.accent : m.light, fg = isA ? m.onAccent : m.ink, PH = Math.round(H * 0.4);
+      return (
+        <AbsoluteFill style={{ background: bg, fontFamily: FONT_UI, color: fg, overflow: 'hidden' }}>
+          <div style={{ position: 'absolute', left: 0, top: 0, right: 0, height: PH, clipPath: `inset(0 0 ${(1 - a(0, 30)) * 100}% 0)`, overflow: 'hidden' }}><Photo src={photos?.intro ?? img(m, 'P', 1)} scale={interpolate(f, [0, 90], [1.16, 1.04])} /></div>
+          <div style={{ position: 'absolute', left: PAD, right: PAD, top: PH + Math.round(H * 0.035) }}>{kick(fg)}</div>
+          <div style={{ position: 'absolute', left: PAD - 6, right: PAD, top: PH + Math.round(H * 0.1) }}>{titleBlock(fg)}</div>
+          <div style={{ position: 'absolute', left: PAD, right: PAD, bottom: H * 0.06 }}>{rows(isA ? 'rgba(0,0,0,.4)' : 'rgba(0,0,0,.25)', 0.7)}</div>
+        </AbsoluteFill>);
+    }
+    const PT = Math.round(H * 0.52);
+    return (
+      <AbsoluteFill style={{ background: m.light, fontFamily: FONT_UI, color: m.ink, overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', left: PAD, right: PAD, top: Math.round(H * 0.06) }}>{kick(m.ink)}</div>
+        <div style={{ position: 'absolute', left: PAD - 8, right: PAD, top: Math.round(H * 0.12) }}>{lines.map((l, i) => <Mask key={i} p={a(6 + i * 6, 28)}><div style={{ fontSize: Math.min(Math.round(H * 0.1), fitFont(longest, 999, W - PAD * 2 + 8, 0.9)), fontWeight: 900, letterSpacing: '-0.06em', lineHeight: 1.02, whiteSpace: 'nowrap' }}>{l}</div></Mask>)}
+          <div style={{ fontSize: 42, fontWeight: 700, marginTop: 26, opacity: a(22), lineHeight: 1.3 }}>{it.sub}</div></div>
+        <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, top: PT, clipPath: `inset(${(1 - a(10, 30)) * 100}% 0 0 0)`, overflow: 'hidden' }}>
+          <Photo src={photos?.intro ?? img(m, 'L', 2)} fy={0.55} scale={interpolate(f, [0, 90], [1.14, 1.04])} />
+          <AbsoluteFill style={{ background: 'linear-gradient(to top, rgba(0,0,0,.8), rgba(0,0,0,0) 65%)' }} />
+          <div style={{ position: 'absolute', left: PAD, right: PAD, bottom: H * 0.06, color: '#fff' }}>{rows('rgba(255,255,255,.5)')}</div>
+        </div>
+      </AbsoluteFill>);
+  }
   const chips = (white: boolean, col: string) => (
     <div style={{ display: 'flex', gap: 56 }}>{it.chips.map((c, i) => (
       <div key={i} style={{ opacity: a(30 + i * 5), transform: `translateY(${(1 - a(30 + i * 5)) * 18}px)`, borderTop: `2px solid ${white ? 'rgba(255,255,255,.55)' : 'rgba(0,0,0,.35)'}`, paddingTop: 14, minWidth: 220, color: col }}>
@@ -76,8 +116,8 @@ export const ModeIntro: React.FC<{ mode: string; spec?: ModeSpec; photos?: Slots
 
 /* ---------- 레일(모드별 데이터 시각화) ---------- */
 const RailView: React.FC<{ r: Rail; m: ModeSpec; x0: number; x1: number; y: number; f: number }> = ({ r, m, x0, x1, y, f }) => {
-  const w = x1 - x0, ink = m.ink, a = prog(f, 16, 24, easeOut);
-  const T = (props: React.SVGProps<SVGTextElement>) => <text fontSize={21} fontWeight={600} fill={ink} fontFamily={FONT_UI} style={TNUM} {...props} />;
+  const w = x1 - x0, ink = m.ink, a = prog(f, 16, 24, easeOut); const { portrait } = useLayout();
+  const T = (props: React.SVGProps<SVGTextElement>) => <text fontSize={portrait ? 25 : 21} fontWeight={600} fill={ink} fontFamily={FONT_UI} style={TNUM} {...props} />;
   if (r.type === 'time') {
     const sx = (h: number) => x0 + ((h - r.from) / (r.to - r.from)) * w;
     return (<g>
@@ -111,8 +151,31 @@ const RailView: React.FC<{ r: Rail; m: ModeSpec; x0: number; x1: number; y: numb
 
 /* ---------- 챕터 카드 ---------- */
 export const ModeCard: React.FC<{ mode: string; spec?: ModeSpec; photos?: Slots; matchCut?: boolean; dur?: number }> = ({ mode, spec, photos, matchCut = false, dur = 84 }) => {
-  const m = spec ?? MODES[mode], c = m.card, f = useCurrentFrame(); const { W, H, PAD, PW } = useGeo(); const LW = W - PW;
+  const m = spec ?? MODES[mode], c = m.card, f = useCurrentFrame(); const { W, H, PAD, PW, portrait } = useGeo(); const LW = W - PW;
   const reveal = prog(f, 2, 22, easeInOut), expand = matchCut ? prog(f, dur - 22, 20, easeInOut) : 0, textOut = matchCut ? prog(f, dur - 24, 14, easeInOut) : 0;
+  if (portrait) {
+    // 세로: 위쪽에 글자·통계·레일, 아래쪽 밴드에 대표 사진(매치컷이면 전체 화면으로 펼쳐짐)
+    const PT = Math.round(H * 0.55), top = lerp(H - (H - PT) * reveal, 0, expand);
+    const bigFs = Math.min(Math.round(H * 0.11), fitFont(c.big, 999, W - PAD * 2 + 8, 0.9)), y0 = Math.round(H * 0.075) + 60;
+    return (
+      <AbsoluteFill style={{ background: m.light, fontFamily: FONT_UI, color: m.ink, overflow: 'hidden' }}>
+        <div style={{ opacity: 1 - textOut }}>
+          <div style={{ position: 'absolute', left: PAD, top: PAD * 0.9, fontSize: 30, fontWeight: 700, opacity: prog(f, 0, 10), ...TNUM }}>{c.index}</div>
+          <div style={{ position: 'absolute', left: PAD - 8, right: PAD, top: y0 }}><Mask p={prog(f, 8, 24, easeOut)}><div style={{ fontSize: bigFs, fontWeight: 900, letterSpacing: '-0.055em', lineHeight: 1.05, whiteSpace: 'nowrap', ...TNUM }}>{c.big}</div></Mask></div>
+          <div style={{ position: 'absolute', left: PAD, right: PAD, top: y0 + bigFs * 1.12, display: 'flex', alignItems: 'center', gap: 24, opacity: prog(f, 20, 14) }}>
+            <div style={{ width: lerp(0, 120, prog(f, 18, 18, easeOut)), height: 10, background: m.accent, flex: 'none' }} /><div style={{ fontSize: 40, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.25 }}>{c.small}</div>
+          </div>
+          <div style={{ position: 'absolute', left: PAD, right: PAD, top: y0 + bigFs * 1.12 + 120, display: 'flex', flexWrap: 'wrap', gap: '24px 48px' }}>
+            {c.meta.map((x, i) => { const a = prog(f, 24 + i * 5, 16, easeOut); return (<div key={i} style={{ opacity: a, transform: `translateY(${(1 - a) * 22}px)` }}><div style={{ fontSize: 44, fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1.1, ...TNUM }}>{x.v}</div><div style={{ fontSize: 26, fontWeight: 600, opacity: 0.55, marginTop: 6 }}>{x.l}</div></div>); })}
+          </div>
+          <svg width={W} height={H} style={{ position: 'absolute', left: 0, top: 0 }}><RailView r={c.rail} m={m} x0={PAD} x1={W - PAD} y={PT - 200} f={f} /></svg>
+        </div>
+        <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, top, overflow: 'hidden', background: '#000' }}>
+          <Photo src={photos?.card ?? img(m, 'P', 2)} scale={interpolate(f, [0, dur], [1.16, 1.04])} />
+        </div>
+      </AbsoluteFill>
+    );
+  }
   const bigFs = Math.min(Math.round(H * 0.28), fitFont(c.big, 999, LW - PAD * 1.4, 0.9));
   return (
     <AbsoluteFill style={{ background: m.light, fontFamily: FONT_UI, color: m.ink, overflow: 'hidden' }}>
@@ -134,11 +197,149 @@ export const ModeCard: React.FC<{ mode: string; spec?: ModeSpec; photos?: Slots;
   );
 };
 
+/* ---------- 세로(9:16) 공용 장면: 인용문·숫자 요약 (행사 장면과 공유) ---------- */
+export const PortraitQuote: React.FC<{ bg: string; accent: string; photo: string; text: string; name: string; role: string; dur: number; kicker?: string }> = ({ bg, accent, photo, text, name, role, dur, kicker }) => {
+  const f = useCurrentFrame(); const { W, H, PAD } = useLayout(); const a = (d: number, du = 18) => prog(f, d, du, easeOut);
+  const PH = Math.round(H * 0.4), lines = text.split('\n').map((l) => l.replace(/^"|"$/g, ''));
+  return (
+    <AbsoluteFill style={{ background: bg, color: '#fff', fontFamily: FONT_UI, overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', left: 0, top: 0, right: 0, height: PH, overflow: 'hidden', clipPath: `inset(0 0 ${(1 - prog(f, 0, 24, easeInOut)) * 100}% 0)` }}><Photo src={photo} scale={interpolate(f, [0, dur], [1.12, 1.02])} /></div>
+      {kicker && <div style={{ position: 'absolute', left: PAD, top: 64, fontSize: 28, fontWeight: 800, letterSpacing: '0.12em', color: '#fff', opacity: a(0, 10), textShadow: '0 2px 12px rgba(0,0,0,.5)' }}>{kicker}</div>}
+      <div style={{ position: 'absolute', left: PAD, right: PAD, top: PH, bottom: Math.round(H * 0.04), display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+      <div style={{ marginLeft: -6, fontSize: 260, fontWeight: 900, lineHeight: 1, height: 150, overflow: 'visible', color: accent, opacity: a(4, 16) }}>“</div>
+      <div>
+        {lines.map((l, i) => <Mask key={i} p={a(10 + i * 8, 26)}><div style={{ fontSize: 68, fontWeight: 900, letterSpacing: '-0.045em', lineHeight: 1.3, wordBreak: 'keep-all' }}>{l}</div></Mask>)}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 22, marginTop: 48, opacity: a(36, 16) }}><div style={{ width: lerp(0, 90, a(34)), height: 8, background: accent, flex: 'none' }} /><div><div style={{ fontSize: 48, fontWeight: 800 }}>{name}</div><div style={{ fontSize: 30, fontWeight: 600, opacity: 0.7 }}>{role}</div></div></div>
+      </div>
+      </div>
+    </AbsoluteFill>);
+};
+export const PortraitStats: React.FC<{ bg: string; fg: string; kicker: string; items: { n: number; l: string; unit?: string; dec?: number }[]; photo: string; dur: number; rich?: boolean }> = ({ bg, fg, kicker, items, photo, dur }) => {
+  const f = useCurrentFrame(); const { W, H, PAD } = useLayout(); const a = (d: number, du = 18) => prog(f, d, du, easeOut);
+  const colW = (W - PAD * 2 - 56) / 2, len = Math.max(...items.map((it) => (it.dec ? it.n.toFixed(it.dec) : Math.round(it.n).toLocaleString()).length)), hasUnit = items.some((it) => it.unit);
+  const fs = Math.min(150, Math.floor(colW / (len * 0.62 + (hasUnit ? 0.55 : 0)))), PT = Math.round(H * 0.58);
+  return (
+    <AbsoluteFill style={{ background: bg, color: fg, fontFamily: FONT_UI, overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', left: PAD, top: 64, fontSize: 30, fontWeight: 800, letterSpacing: '0.06em', opacity: a(0, 10) }}>{kicker}</div>
+      <div style={{ position: 'absolute', left: PAD, right: PAD, top: Math.round(H * 0.11), display: 'grid', gridTemplateColumns: '1fr 1fr', gap: `${Math.round(H * 0.035)}px 56px` }}>
+        {items.map((it, i) => { const v = it.n * prog(f, 10 + i * 8, 44, easeOut); return (
+          <div key={i} style={{ borderTop: `4px solid ${fg}`, paddingTop: 16, opacity: a(8 + i * 8, 20) }}>
+            <div style={{ fontSize: fs, fontWeight: 900, letterSpacing: '-0.06em', lineHeight: 1, whiteSpace: 'nowrap', ...TNUM }}>{it.dec ? v.toFixed(it.dec) : Math.round(v).toLocaleString()}{it.unit && <span style={{ fontSize: '0.36em', fontWeight: 800, letterSpacing: '-0.02em', marginLeft: 8 }}>{it.unit}</span>}</div>
+            <div style={{ fontSize: 38, fontWeight: 800, marginTop: 10 }}>{it.l}</div>
+          </div>); })}
+      </div>
+      <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, top: PT, overflow: 'hidden', clipPath: `inset(${(1 - prog(f, 0, 22, easeInOut)) * 100}% 0 0 0)` }}><Photo src={photo} scale={interpolate(f, [0, dur], [1.14, 1.02])} /></div>
+    </AbsoluteFill>);
+};
+
 /* ---------- 사진 컷(데이터 오버레이) ---------- */
 export const ModeBeat: React.FC<{ mode: string; spec?: ModeSpec; photos?: string[]; dur?: number }> = ({ mode, spec, photos, dur = 104 }) => {
-  const m = spec ?? MODES[mode], b = m.beat, im = (k: 'L' | 'P', n: number, slot = 0) => photos?.[slot] ?? img(m, k, n), f = useCurrentFrame(); const { W, H, PAD, PW } = useGeo();
+  const m = spec ?? MODES[mode], b = m.beat, im = (k: 'L' | 'P', n: number, slot = 0) => photos?.[slot] ?? img(m, k, n), f = useCurrentFrame(); const { W, H, PAD, PW, portrait } = useGeo();
   const a = (d: number, dur = 18) => prog(f, d, dur, easeOut), kb = interpolate(f, [0, 90], [1.0, 1.08]);
   const chip = (t: string, bg: string, fg: string, size = 34) => <div style={{ display: 'inline-block', background: bg, color: fg, fontSize: size, fontWeight: 800, padding: '8px 22px', letterSpacing: '-0.01em', ...TNUM }}>{t}</div>;
+  if (portrait) {
+    const kicker = (t: string, col: string) => <div style={{ position: 'absolute', left: PAD, top: 64, fontSize: 28, fontWeight: 800, letterSpacing: '0.12em', color: col, opacity: a(0, 10) }}>{t}</div>;
+    const bar = (w: number) => <div style={{ width: lerp(0, w, a(18)), height: 10, background: m.accent, marginTop: 28 }} />;
+    if (b.kind === 'lower') return (
+      <AbsoluteFill style={{ background: '#000', fontFamily: FONT_UI, color: '#fff' }}>
+        <Photo src={im('L', 2)} scale={kb} /><AbsoluteFill style={{ background: 'linear-gradient(to top, rgba(0,0,0,.82) 0%, rgba(0,0,0,0) 48%)' }} />
+        <div style={{ position: 'absolute', left: PAD, right: PAD, bottom: H * 0.12, opacity: a(6), transform: `translateX(${(1 - a(6)) * -40}px)` }}>
+          {chip(b.chip, m.accent, m.onAccent)}<div style={{ fontSize: 76, fontWeight: 900, letterSpacing: '-0.04em', marginTop: 20, lineHeight: 1.1, wordBreak: 'keep-all' }}>{b.title}</div><div style={{ fontSize: 36, fontWeight: 600, opacity: 0.85, marginTop: 10 }}>{b.sub}</div>
+        </div>
+        <div style={{ position: 'absolute', left: 0, bottom: 0, height: 8, width: W, background: 'rgba(255,255,255,.25)' }}><div style={{ width: `${a(10, 60) * 62}%`, height: '100%', background: m.accent }} /></div>
+      </AbsoluteFill>);
+    if (b.kind === 'beforeafter') { const s = lerp(0.2, 0.56, prog(f, 8, 40, easeInOut)) * H; return (
+      <AbsoluteFill style={{ background: '#000', fontFamily: FONT_UI, color: '#fff' }}>
+        <Photo src={im('L', 2, 0)} scale={1.04} /><div style={{ position: 'absolute', inset: 0, clipPath: `inset(${s}px 0 0 0)` }}><Photo src={im('L', 3, 1)} scale={1.04} /></div>
+        <div style={{ position: 'absolute', top: s - 2, left: 0, right: 0, height: 4, background: '#fff' }} />
+        <div style={{ position: 'absolute', top: s - 36, left: W / 2 - 36, width: 72, height: 72, borderRadius: 36, background: '#fff', color: '#111', fontSize: 30, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>▲▼</div>
+        <div style={{ position: 'absolute', left: PAD, top: 64 }}>{chip(b.before, 'rgba(0,0,0,.65)', '#fff', 30)}</div>
+        <div style={{ position: 'absolute', left: PAD, bottom: H * 0.17 }}>{chip(b.after, m.accent, m.onAccent, 30)}</div>
+        <div style={{ position: 'absolute', left: PAD, right: PAD, bottom: H * 0.09, opacity: a(20) }}>{chip(b.chip, '#fff', '#111', 40)}</div>
+      </AbsoluteFill>); }
+    if (b.kind === 'spec') { const PH = Math.round(H * 0.4); return (
+      <AbsoluteFill style={{ background: m.light, fontFamily: FONT_UI, color: m.ink }}>
+        <div style={{ position: 'absolute', left: 0, top: 0, right: 0, height: PH, overflow: 'hidden', clipPath: `inset(0 0 ${(1 - a(0, 26)) * 100}% 0)` }}><Photo src={im('P', 3)} scale={interpolate(f, [0, 90], [1.12, 1.02])} /></div>
+        <div style={{ position: 'absolute', left: PAD, top: PH + 44, fontSize: 28, fontWeight: 800, letterSpacing: '0.12em', color: m.accent }}>{b.en.toUpperCase()}</div>
+        <div style={{ position: 'absolute', left: PAD - 8, right: PAD, top: PH + 92 }}><Mask p={a(4, 24)}><div style={{ fontSize: Math.min(Math.round(H * 0.08), fitFont(b.title, 999, W - PAD * 2, 0.95)), fontWeight: 900, letterSpacing: '-0.06em', lineHeight: 1.05, whiteSpace: 'nowrap' }}>{b.title}</div></Mask></div>
+        <div style={{ position: 'absolute', left: PAD, right: PAD, top: PH + 290 }}>{b.rows.map((r, i) => (<div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 24, borderTop: '2px solid rgba(0,0,0,.2)', padding: '20px 0', opacity: a(14 + i * 5) }}><span style={{ fontSize: 30, fontWeight: 600, opacity: 0.55, flex: 'none' }}>{r.k}</span><span style={{ fontSize: 48, fontWeight: 800, letterSpacing: '-0.03em', textAlign: 'right', ...TNUM }}>{r.v}</span></div>))}</div>
+      </AbsoluteFill>); }
+    if (b.kind === 'callout') {
+      const vis = Math.min(1, W / (H * 1.78)), xc = b.points.reduce((x, p) => x + p.x, 0) / b.points.length, fxp = clamp((xc - vis / 2) / Math.max(1e-6, 1 - vis), 0, 1), left = fxp * (1 - vis);
+      return (
+        <AbsoluteFill style={{ background: m.light, fontFamily: FONT_UI, color: m.ink }}>
+          <Photo src={im('L', 1)} fx={fxp} scale={1.0} />
+          <AbsoluteFill style={{ background: 'linear-gradient(to bottom, rgba(255,255,255,.55) 0%, rgba(255,255,255,0) 14%, rgba(255,255,255,0) 82%, rgba(255,255,255,.6) 100%)' }} />
+          <div style={{ position: 'absolute', left: PAD, top: 64, fontSize: 48, fontWeight: 900, letterSpacing: '-0.02em' }}>{b.name}</div>
+          <svg width={W} height={H} style={{ position: 'absolute', inset: 0 }}>{b.points.map((p, i) => { const k = prog(f, 14 + i * 8, 18, easeOut), px = clamp((p.x - left) / vis, 0.1, 0.9) * W, py = p.y * H, right = px > W / 2, ly = py - 120, ex = right ? W - PAD : PAD, ax = right ? 'end' : 'start';
+            return (<g key={i}><circle cx={px} cy={py} r={11 + Math.sin(f / 5 + i) * 2} fill="none" stroke={m.accent} strokeWidth={3.5} opacity={k} /><circle cx={px} cy={py} r={6} fill={m.accent} opacity={k} />
+              <polyline points={`${px},${py} ${px},${ly + 22} ${ex},${ly + 22}`} fill="none" stroke={m.ink} strokeWidth={2.5} opacity={0.7 * k} strokeDasharray={900} strokeDashoffset={900 * (1 - k)} />
+              <text x={ex} y={ly - 36} textAnchor={ax} fontSize={44} fontWeight={800} fill={m.ink} fontFamily={FONT_UI} opacity={k} stroke="rgba(255,255,255,.9)" strokeWidth={9} paintOrder="stroke" strokeLinejoin="round">{p.t}</text>
+              <text x={ex} y={ly + 4} textAnchor={ax} fontSize={30} fontWeight={700} fill={m.ink} opacity={k} fontFamily={FONT_UI} stroke="rgba(255,255,255,.9)" strokeWidth={7} paintOrder="stroke" strokeLinejoin="round">{p.s}</text></g>); })}</svg>
+          <div style={{ position: 'absolute', left: PAD, right: PAD, bottom: H * 0.08, display: 'flex', flexWrap: 'wrap', gap: '14px 32px', opacity: a(34) }}>{b.swatches.map((s, i) => (<div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 28, fontWeight: 700 }}><div style={{ width: 44, height: 44, borderRadius: 22, background: s.c, border: '2px solid rgba(0,0,0,.2)' }} />{s.n}</div>))}</div>
+        </AbsoluteFill>); }
+    if (b.kind === 'route') { const mw = W - PAD * 2, mh = 340, n = b.stops.length; const pts = b.stops.map((_, i) => ({ x: 56 + (i / (n - 1)) * (mw - 112), y: mh / 2 - 20 + Math.sin(i * 1.7 + 0.6) * 70 }));
+      return (<AbsoluteFill style={{ background: '#000', fontFamily: FONT_UI, color: '#fff' }}>
+        <Photo src={im('L', 1)} scale={kb} /><AbsoluteFill style={{ background: 'linear-gradient(to top, rgba(0,0,0,.75) 0%, rgba(0,0,0,0) 45%), linear-gradient(to bottom, rgba(0,0,0,.4) 0%, rgba(0,0,0,0) 30%)' }} />
+        <div style={{ position: 'absolute', left: PAD, right: PAD, top: 64, height: mh, borderRadius: 28, background: 'rgba(12,30,40,.55)', backdropFilter: 'blur(14px)', border: '1px solid rgba(255,255,255,.25)', opacity: a(8) }}>
+          <svg width={mw} height={mh}><path d={pts.map((p, i) => `${i ? 'L' : 'M'}${p.x},${p.y}`).join(' ')} fill="none" stroke="#fff" strokeOpacity={0.4} strokeWidth={3} strokeDasharray="6 8" />
+            <path d={pts.slice(0, b.active + 1).map((p, i) => `${i ? 'L' : 'M'}${p.x},${p.y}`).join(' ')} fill="none" stroke={m.accent} strokeWidth={6} />
+            {pts.map((p, i) => <g key={i}><circle cx={p.x} cy={p.y} r={i === b.active ? 12 + Math.sin(f / 4) * 2 : 6} fill={i === b.active ? m.accent : '#fff'} /><text x={p.x} y={p.y + 40} textAnchor="middle" fontSize={24} fontWeight={700} fill="#fff" fontFamily={FONT_UI}>{b.stops[i]}</text></g>)}</svg></div>
+        <div style={{ position: 'absolute', left: PAD, right: PAD, bottom: H * 0.12, opacity: a(4) }}><div style={{ fontSize: Math.min(130, fitFont(b.place, 999, W - PAD * 2, 0.95)), fontWeight: 900, letterSpacing: '-0.05em', lineHeight: 1.05 }}>{b.place}</div><div style={{ fontSize: 42, fontWeight: 600, marginTop: 16, ...TNUM }}>{b.sub} · {b.km}</div></div>
+      </AbsoluteFill>); }
+    if (b.kind === 'caption') { const PH = Math.round(H * 0.38); return (
+      <AbsoluteFill style={{ background: m.light, fontFamily: FONT_UI, color: m.ink }}>
+        <div style={{ position: 'absolute', left: 0, top: 0, right: 0, height: PH, overflow: 'hidden', clipPath: `inset(0 0 ${(1 - a(0, 24)) * 100}% 0)` }}><Photo src={im('L', 1)} scale={kb} /></div>
+        <div style={{ position: 'absolute', left: PAD, right: PAD, top: PH, bottom: Math.round(H * 0.05), display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <div style={{ fontSize: Math.round(H * 0.085), fontWeight: 900, letterSpacing: '-0.06em', lineHeight: 1, color: m.accent, ...TNUM }}>{b.step}</div>
+          <div style={{ fontSize: 72, fontWeight: 900, letterSpacing: '-0.04em', marginTop: 8, opacity: a(8), lineHeight: 1.1 }}>{b.title}</div>
+          <div style={{ fontSize: 38, fontWeight: 600, lineHeight: 1.45, marginTop: 28, paddingLeft: 24, borderLeft: `6px solid ${m.accent}`, opacity: a(14), wordBreak: 'keep-all' }}>{b.quote}</div>
+          <div style={{ marginTop: 40 }}>{b.points.map((p, i) => <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 18, fontSize: 36, fontWeight: 700, marginTop: 18, opacity: a(20 + i * 5) }}><div style={{ width: 18, height: 18, background: m.accent, flex: 'none' }} />{p}</div>)}</div>
+        </div>
+      </AbsoluteFill>); }
+    if (b.kind === 'stats') return <PortraitStats bg={m.accent} fg={m.onAccent} kicker={b.kicker} items={b.items} photo={im('P', 1)} dur={dur} />;
+    if (b.kind === 'quote') return <PortraitQuote bg={m.ink} accent={m.accent} photo={im('P', 2)} text={b.text} name={b.name} role={b.role} dur={dur} />;
+    if (b.kind === 'schedule') { const n = b.rows.length, titleLines = wrapTitle(b.title.split('\n'), 6), top = Math.round(H * 0.36), rowH = Math.min(170, (H * 0.58) / n), stack = b.rows.some((r) => Array.from(r.d).length > 6); let hi2 = 0; return (
+      <AbsoluteFill style={{ background: m.light, color: m.ink, fontFamily: FONT_UI }}>
+        {kicker(b.kicker, m.accent)}
+        <div style={{ position: 'absolute', left: PAD - 8, top: Math.round(H * 0.1) }}>{titleLines.map((l, i) => <Mask key={i} p={a(4 + i * 6, 24)}><div style={{ fontSize: Math.round(H * 0.095), fontWeight: 900, letterSpacing: '-0.06em', lineHeight: 1.05 }}>{l}</div></Mask>)}{bar(150)}</div>
+        {b.rows.map((r, i) => { const ap = a(8 + i * 6), on = !!r.hi, lit = on ? prog(f, 44 + hi2++ * 7, 14, easeOut) : 0; return (
+          <div key={i} style={{ position: 'absolute', left: PAD + 24, right: PAD, top: top + i * rowH, height: rowH, display: 'flex', flexDirection: stack ? 'column' : 'row', alignItems: stack ? 'flex-start' : 'center', justifyContent: stack ? 'center' : undefined, gap: stack ? 4 : 28, borderTop: '2px solid rgba(0,0,0,.16)', opacity: ap, transform: `translateX(${(1 - ap) * 60}px)` }}>
+            <div style={{ position: 'absolute', left: -28, top: 0, width: 8, height: rowH * lit, background: m.accent }} />
+            <div style={{ width: stack ? undefined : 210, flex: 'none', fontSize: stack ? 38 : 50, fontWeight: 800, letterSpacing: '-0.03em', color: lit > 0.5 ? m.accent : m.ink, whiteSpace: 'nowrap', ...TNUM }}>{r.d}</div>
+            <div style={{ minWidth: 0 }}><div style={{ fontSize: on ? 46 : 40, fontWeight: on ? 900 : 700, letterSpacing: '-0.03em', lineHeight: 1.2 }}>{r.t}</div>{r.s && <div style={{ fontSize: 26, fontWeight: 600, opacity: 0.55, marginTop: 2 }}>{r.s}</div>}</div>
+          </div>); })}
+      </AbsoluteFill>); }
+    if (b.kind === 'names') { const cols = 3, per = Math.ceil(b.names.length / cols), lh = 70, vt = Math.round(H * 0.3), vh = H - vt - Math.round(H * 0.04), travel = Math.max(0, per * lh - vh + 120), y = 60 - travel * prog(f, 24, dur - 56, (t) => t); return (
+      <AbsoluteFill style={{ background: m.ink, color: '#fff', fontFamily: FONT_UI }}>
+        {kicker(b.kicker, m.accent)}
+        <div style={{ position: 'absolute', left: PAD - 6, right: PAD, top: Math.round(H * 0.095) }}><Mask p={a(4, 24)}><div style={{ fontSize: Math.round(H * 0.085), fontWeight: 900, letterSpacing: '-0.055em', lineHeight: 1.04 }}>{b.title}</div></Mask>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginTop: 20, opacity: a(16) }}><div style={{ width: lerp(0, 90, a(14)), height: 8, background: m.accent, flex: 'none' }} /><div style={{ fontSize: 34, fontWeight: 700, opacity: 0.85 }}>{b.sub}</div></div></div>
+        <div style={{ position: 'absolute', left: PAD, right: PAD, top: vt, height: vh, overflow: 'hidden', WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, #000 8%, #000 90%, transparent 100%)', maskImage: 'linear-gradient(to bottom, transparent 0%, #000 8%, #000 90%, transparent 100%)', opacity: a(10, 20) }}>
+          <div style={{ position: 'absolute', left: 0, right: 0, top: y, display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gridAutoFlow: 'column', gridTemplateRows: `repeat(${per}, ${lh}px)` }}>
+            {b.names.map((nm, i) => <div key={i} style={{ fontSize: 42, fontWeight: 700, letterSpacing: '0.02em', whiteSpace: 'nowrap' }}>{nm}</div>)}
+          </div>
+        </div>
+      </AbsoluteFill>); }
+    if (b.kind === 'timeline') { const n = b.counts.length, x0 = PAD, x1 = W - PAD, bw = (x1 - x0) / n, base = Math.round(H * 0.74), mh = Math.round(H * 0.32), mx = Math.max(...b.counts, 1), total = b.counts.reduce((x, y) => x + y, 0), sweep = prog(f, 10, 54, easeInOut); return (
+      <AbsoluteFill style={{ background: m.light, color: m.ink, fontFamily: FONT_UI }}>
+        {kicker(b.kicker, m.accent)}
+        <div style={{ position: 'absolute', left: PAD - 6, top: Math.round(H * 0.095) }}><Mask p={a(4, 24)}><div style={{ fontSize: Math.round(H * 0.085), fontWeight: 900, letterSpacing: '-0.055em', lineHeight: 1.04 }}>{b.title}</div></Mask></div>
+        <div style={{ position: 'absolute', left: PAD, top: Math.round(H * 0.19), opacity: a(8) }}><div style={{ fontSize: Math.round(H * 0.07), fontWeight: 900, letterSpacing: '-0.05em', lineHeight: 1, ...TNUM }}>{Math.round(total * sweep).toLocaleString()}<span style={{ fontSize: '0.4em', marginLeft: 8 }}>{b.unit}</span></div></div>
+        <svg width={W} height={H} style={{ position: 'absolute', inset: 0 }}>
+          {b.counts.map((c, i) => { const g = clamp(sweep * n - i, 0, 1), h = (c / mx) * mh * g, mark = b.marks.some((k) => k.i === i); return <rect key={i} x={x0 + i * bw + bw * 0.16} y={base - h} width={bw * 0.68} height={h} fill={mark ? m.accent : m.ink} opacity={mark ? 1 : 0.86} />; })}
+          <line x1={x0} x2={x1} y1={base} y2={base} stroke={m.ink} strokeOpacity={0.35} strokeWidth={2} />
+          {b.marks.map((k, j) => {
+            // 라벨이 옆 막대와 겹치지 않도록, 라벨이 덮는 막대 중 가장 높은 막대 위에 놓는다
+            const x = x0 + k.i * bw + bw / 2, hh = (b.counts[k.i] / mx) * mh, o = clamp(sweep * n - k.i - 0.5, 0, 1), up = j % 2 ? 70 : 26, anchor = k.i < n * 0.3 ? 'start' : k.i > n * 0.7 ? 'end' : 'middle';
+            const tw = Array.from(k.label).length * 32 + 6, xs = anchor === 'start' ? x - 6 : anchor === 'end' ? x - tw + 6 : x - tw / 2, lo = clamp(Math.floor((xs - x0) / bw), 0, n - 1), hi = clamp(Math.floor((xs + tw - x0) / bw), 0, n - 1);
+            let top = hh; for (let q = lo; q <= hi; q++) top = Math.max(top, (b.counts[q] / mx) * mh * clamp(sweep * n - q, 0, 1));
+            return (<g key={j} opacity={o}><line x1={x} x2={x} y1={base - hh - 8} y2={base - top - up + 6} stroke={m.ink} strokeWidth={2} /><text x={x} y={base - top - up - 6} textAnchor={anchor} fontSize={32} fontWeight={800} fill={m.ink} fontFamily={FONT_UI}>{k.label}</text></g>); })}
+          {b.bands.map((bd, j) => { const xa = x0 + bd.from * bw + 6, xb = x0 + (bd.to + 1) * bw - 6, o = a(20 + j * 8); return (<g key={j} opacity={o}><rect x={xa} y={base + 26} width={(xb - xa) * a(20 + j * 8, 26)} height={8} fill={m.accent} /><text x={xa} y={base + 80} fontSize={30} fontWeight={800} fill={m.ink} fontFamily={FONT_UI}>{bd.label}</text></g>); })}
+        </svg>
+      </AbsoluteFill>); }
+    return null;
+  }
   if (b.kind === 'lower') return (
     <AbsoluteFill style={{ background: '#000', fontFamily: FONT_UI, color: '#fff' }}>
       <Photo src={im('L', 2)} scale={kb} /><AbsoluteFill style={{ background: 'linear-gradient(to top, rgba(0,0,0,.75) 0%, rgba(0,0,0,0) 40%)' }} />
@@ -254,9 +455,32 @@ export const ModeBeat: React.FC<{ mode: string; spec?: ModeSpec; photos?: string
 const QR: React.FC<{ s: number; fg: string; bg: string }> = ({ s, fg, bg }) => { const n = 21, c = s / n; return (<svg width={s} height={s}><rect width={s} height={s} fill={bg} />{Array.from({ length: n * n }, (_, i) => { const x = i % n, y = Math.floor(i / n); const fin = (x < 7 && y < 7) || (x > 13 && y < 7) || (x < 7 && y > 13); const on = fin ? (x % 6 === 0 || y % 6 === 0 || x % 6 === 6 || (x > 1 && x < 5 && y > 1 && y < 5) || (x > 15 && x < 19 && y > 1 && y < 5) || (x > 1 && x < 5 && y > 15 && y < 19)) : random(`q${i}`) > 0.52; return on ? <rect key={i} x={x * c} y={y * c} width={c} height={c} fill={fg} /> : null; })}</svg>); };
 
 export const ModeOutro: React.FC<{ mode: string; spec?: ModeSpec }> = ({ mode, spec }) => {
-  const m = spec ?? MODES[mode], o = m.outro, f = useCurrentFrame(); const { W, H, PAD } = useGeo();
+  const m = spec ?? MODES[mode], o = m.outro, f = useCurrentFrame(); const { W, H, PAD, portrait } = useGeo();
   const a = (d: number, dur = 20) => prog(f, d, dur, easeOut);
   const fs = Math.min(Math.round(H * 0.17), fitFont(o.title, 999, W * 0.5, 0.95));
+  if (portrait) {
+    const tl = wrapTitle([o.title], 9), tfs = Math.min(Math.round(H * 0.085), ...tl.map((l) => fitFont(l, 999, W - PAD * 2 + 8, 0.95)));
+    return (
+      <AbsoluteFill style={{ background: m.ink, fontFamily: FONT_UI, color: '#fff', overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', left: PAD - 6, right: PAD, top: H * 0.09 }}>
+          {tl.map((l, i) => <Mask key={i} p={a(4 + i * 6, 26)}><div style={{ fontSize: tfs, fontWeight: 900, letterSpacing: '-0.055em', lineHeight: 1.06, whiteSpace: 'nowrap' }}>{l}</div></Mask>)}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 22, marginTop: 20, opacity: a(16) }}><div style={{ width: lerp(0, 90, a(14)), height: 10, background: m.accent, flex: 'none' }} /><div style={{ fontSize: 38, fontWeight: 700, opacity: 0.9, lineHeight: 1.25 }}>{o.sub}</div></div>
+        </div>
+        <div style={{ position: 'absolute', left: PAD, right: PAD, top: H * 0.09 + tl.length * tfs * 1.06 + 170 }}>
+          {o.rows.map((r, i) => (<div key={i} style={{ borderTop: '2px solid rgba(255,255,255,.3)', padding: '18px 0 24px', opacity: a(14 + i * 6), transform: `translateY(${(1 - a(14 + i * 6)) * 16}px)` }}><div style={{ fontSize: 26, fontWeight: 600, opacity: 0.6 }}>{r.k}</div><div style={{ fontSize: 44, fontWeight: 800, letterSpacing: '-0.02em', marginTop: 4, lineHeight: 1.2, ...TNUM }}>{r.v}</div></div>))}
+          {o.stats && <div style={{ display: 'flex', gap: 40, marginTop: 36 }}>{o.stats.map((s, i) => (<div key={i} style={{ opacity: a(22 + i * 6), minWidth: 0 }}><div style={{ fontSize: Math.min(110, Math.floor((W - PAD * 2 - 80) / o.stats!.length / (Math.max(...o.stats!.map((x) => x.n.length)) * 0.62))), fontWeight: 900, letterSpacing: '-0.05em', lineHeight: 1, ...TNUM }}>{s.n}</div><div style={{ fontSize: 28, fontWeight: 600, opacity: 0.65, marginTop: 8 }}>{s.l}</div></div>))}</div>}
+        </div>
+        {o.cta && <div style={{ position: 'absolute', left: PAD, bottom: H * 0.1, background: m.accent, color: m.onAccent, fontSize: 40, fontWeight: 800, padding: '20px 40px', opacity: a(40) }}>{o.cta}</div>}
+        {o.extra === 'qr' && <div style={{ position: 'absolute', right: PAD, bottom: H * 0.075, opacity: a(34), textAlign: 'center' }}><QR s={200} fg="#111" bg="#fff" /><div style={{ fontSize: 22, fontWeight: 700, marginTop: 10, opacity: 0.8 }}>SCAN</div></div>}
+        {o.extra === 'sponsors' && <div style={{ position: 'absolute', left: PAD, right: PAD, bottom: H * 0.075 }}><div style={{ fontSize: 24, fontWeight: 700, letterSpacing: '0.12em', opacity: 0.6, marginBottom: 14 }}>SPONSORS</div><div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20 }}>{[0, 1, 2, 3, 4, 5].map((i) => <div key={i} style={{ height: 84, border: '2px solid rgba(255,255,255,.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, fontWeight: 700, opacity: a(40 + i * 3) * 0.8 }}>LOGO</div>)}</div></div>}
+        {o.extra === 'progress' && <div style={{ position: 'absolute', left: PAD, right: PAD, bottom: H * 0.1 }}><div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 30, fontWeight: 700, marginBottom: 14, ...TNUM }}><span>현재 공정률</span><span style={{ color: m.accent }}>42%</span></div>
+          <div style={{ height: 22, borderRadius: 11, background: 'rgba(255,255,255,.18)', overflow: 'hidden' }}><div style={{ width: `${a(20, 40) * 42}%`, height: '100%', background: m.accent }} /></div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 24, fontWeight: 600, opacity: 0.65, marginTop: 14 }}>{['터파기', '기초', '골조', '설비', '마감'].map((x) => <span key={x}>{x}</span>)}</div></div>}
+        {o.extra === 'route' && <svg width={W} height={H} style={{ position: 'absolute', inset: 0 }}>{(() => { const pts = [[0.12, 0.88], [0.3, 0.82], [0.48, 0.9], [0.66, 0.8], [0.86, 0.87]].map(([x, y]) => ({ x: x * W, y: y * H })); const k = a(18, 50); return (<g><path d={pts.map((p, i) => `${i ? 'L' : 'M'}${p.x},${p.y}`).join(' ')} fill="none" stroke={m.accent} strokeWidth={7} strokeDasharray={1800} strokeDashoffset={1800 * (1 - k)} />{pts.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r={11} fill="#fff" opacity={prog(f, 18 + i * 9, 8)} />)}</g>); })()}</svg>}
+        {o.extra === 'rating' && <div style={{ position: 'absolute', left: PAD, bottom: H * 0.1, fontSize: 80, letterSpacing: 8, color: m.accent, opacity: a(40) }}>★★★★<span style={{ opacity: 0.4 }}>★</span></div>}
+      </AbsoluteFill>
+    );
+  }
   return (
     <AbsoluteFill style={{ background: m.ink, fontFamily: FONT_UI, color: '#fff', overflow: 'hidden' }}>
       <div style={{ position: 'absolute', left: PAD - 6, top: H * 0.16 }}><Mask p={a(4, 26)}><div style={{ fontSize: fs, fontWeight: 900, letterSpacing: '-0.055em', lineHeight: 1.04, whiteSpace: 'nowrap' }}>{o.title}</div></Mask>

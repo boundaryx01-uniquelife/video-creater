@@ -14,6 +14,7 @@ import { SaveResult, loadProps, saveProps } from './storage.ts';
 import { RenderPanel, UnsavedBar } from './RenderPanel';
 import { useFileDrop } from './dnd.ts';
 import './polish.css';
+import { Aspect, SIZES } from '../lib/layout';
 
 
 class Boundary extends React.Component<{ k: string; children: React.ReactNode }, { err: string | null }> {
@@ -31,6 +32,9 @@ export const StudioApp: React.FC = () => {
   const props = H.value, setProps = (p: any) => H.set(p);
   const [busy, setBusy] = useState(''), [note, setNote] = useState(''), [server, setServer] = useState<boolean | null>(null), [stored, setStored] = useState<SaveResult>('ok');
   const [licensed, setLicensed] = useAudioLicense(props.audio?.src);
+  const [aspect, setAspect] = useState<Aspect>(() => { try { return localStorage.getItem('studio:aspect') === '9:16' ? '9:16' : '16:9'; } catch { return '16:9'; } });
+  const size = SIZES.find((z) => z.label === aspect) ?? SIZES[0], vertical = size.height > size.width;
+  useEffect(() => { try { localStorage.setItem('studio:aspect', aspect); } catch { /* 무시 */ } }, [aspect]);
   const player = useRef<PlayerRef>(null), bulkRef = useRef<HTMLInputElement>(null), importRef = useRef<HTMLInputElement>(null);
   useUndoKeys(H.undo, H.redo);
   const fallbackSrc = useMemo(() => JSON.stringify(mode.sample()).match(/media\/[\w.-]+/)?.[0] ?? '', [mode.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -89,14 +93,19 @@ export const StudioApp: React.FC = () => {
           ))}
         </aside>
         <main>
-          <div className="player">
+          <div className={'stage' + (vertical ? ' v' : '')}>
+          <div className={'player' + (vertical ? ' v' : '')}>
             <Boundary k={JSON.stringify(props).length + ':' + plan.total}>
               {plan.err ? <div className="perr">입력 값으로 영상을 구성할 수 없습니다.<small>{plan.err}</small></div> :
-                <Player ref={player} key={mode.id} component={mode.Component} inputProps={props} durationInFrames={Math.max(1, plan.total)} fps={30} compositionWidth={1920} compositionHeight={1080} initialFrame={Math.min(75, Math.max(0, plan.total - 1))} controls loop style={{ width: '100%' }} acknowledgeRemotionLicense />}
+                <Player ref={player} key={mode.id + aspect} component={mode.Component} inputProps={props} durationInFrames={Math.max(1, plan.total)} fps={30} compositionWidth={size.width} compositionHeight={size.height} initialFrame={Math.min(75, Math.max(0, plan.total - 1))} controls loop style={{ width: '100%', height: '100%' }} acknowledgeRemotionLicense />}
             </Boundary>
           </div>
+          <div className="side">
           <div className="scenes">{plan.scenes.map((s, i) => <button key={i} onClick={() => { player.current?.pause(); player.current?.seekTo(Math.min(plan.total - 1, s.from + 40)); }}>{s.label}</button>)}<span>{(plan.total / 30).toFixed(1)}초</span></div>
-          <RenderPanel modeId={mode.id} modeName={mode.name} comp={mode.comp} props={props} planErr={plan.err} server={server} needLicense={needLicense} audioLicensed={licensed} />
+          <div className="aspectrow"><label>화면 비율<select value={aspect} onChange={(e) => { player.current?.pause(); setAspect(e.target.value as Aspect); }}>{SIZES.map((z) => <option key={z.label} value={z.label}>{z.label === '16:9' ? '16:9 가로 (1920×1080)' : '9:16 세로 (1080×1920)'}</option>)}</select></label></div>
+          <RenderPanel modeId={mode.id} modeName={mode.name + (vertical ? ' · 세로' : '')} comp={mode.comp + size.suffix} props={props} planErr={plan.err} server={server} needLicense={needLicense} audioLicensed={licensed} />
+          </div>
+          </div>
         </main>
       </div>
     {dragging && <div className="dropveil">사진을 놓으면 불러옵니다</div>}

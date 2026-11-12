@@ -2,7 +2,7 @@ import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 're
 import { AbsoluteFill, cancelRender, continueRender, delayRender, staticFile, useVideoConfig } from 'remotion';
 import { geoPath } from 'd3-geo';
 import type { GeoExtras, LL, Leg, Mode, Texture, TravelProps } from './types.ts';
-import { MODE_COLOR, RAD, graticulePath, km, landPath, linePath, makeProj, toScreen } from './geo.ts';
+import { MODE_COLOR, PERSP, RAD, graticulePath, km, landPath, linePath, makeProj, toScreen } from './geo.ts';
 import { FONT_UI, TNUM, clamp } from '../lib/common';
 
 export type MapLabel = { pos: LL; text: string; sub?: string; o: number; big?: boolean; dx?: number; dy?: number; small?: boolean };
@@ -73,10 +73,14 @@ export const TravelMap: React.FC<{
   p: TravelProps; legs: Leg[]; assets: Assets; center: LL; R: number; tilt?: number; tx?: number; ty?: number;
   progress: number[]; pins: boolean[]; labels?: MapLabel[]; vehicle?: { leg: number } | null; fog?: boolean; bg?: string; cityLabels?: boolean;
 }> = ({ p, legs, assets, center, R, tilt = 0, tx, ty, progress, pins, labels = [], vehicle = null, fog = false, bg, cityLabels = true }) => {
-  const { width: W, height: H } = useVideoConfig();
+  const { width: W, height: H } = useVideoConfig(); const portrait = H > W;
+  // 세로 화면은 원근 거리를 화면 높이에 비례시켜 가로와 같은 투영 비율을 유지한다
+  const persp = portrait ? Math.round(H * 1.39) : PERSP;
   const LW = W * 2, LH = H * 2.8, cx = LW / 2, cy = LH / 2, c = p.colors, ptx = cx + ((tx ?? W / 2) - W / 2), pty = cy + ((ty ?? H / 2) - H / 2);
   // 화면에 보일 수 있는 레이어 영역(기울이면 위쪽이 더 많이 보인다)
-  const vx0 = tilt > 0 ? cx - W * 0.78 : cx - W / 2, vx1 = tilt > 0 ? cx + W * 0.78 : cx + W / 2, vy0 = tilt > 0 ? cy - H * 1.12 : cy - H / 2, vy1 = tilt > 0 ? cy + H * 0.56 : cy + H / 2;
+  const th = tilt * RAD, sTop = (-H / 2) * persp / (persp * Math.cos(th) + (-H / 2) * Math.sin(th)), sBot = (H / 2) * persp / (persp * Math.cos(th) + (H / 2) * Math.sin(th)), kTop = persp / (persp - sTop * Math.sin(th));
+  const tx0 = portrait ? Math.min(LW / 2 - 10, (W / 2) / kTop * 1.12 + W * 0.1) : W * 0.78;
+  const vx0 = tilt > 0 ? cx - tx0 : cx - W / 2, vx1 = tilt > 0 ? cx + tx0 : cx + W / 2, vy0 = tilt > 0 ? (portrait ? Math.max(0, cy + sTop - H * 0.1) : cy - H * 1.12) : cy - H / 2, vy1 = tilt > 0 ? (portrait ? cy + sBot + H * 0.1 : cy + H * 0.56) : cy + H / 2;
   const proj = makeProj(center, R, ptx, pty); proj.clipExtent([[vx0 - 40, vy0 - 40], [vx1 + 40, vy1 + 40]]);
   const gpath = geoPath(proj), diag = Math.hypot(W, H) * (tilt > 0 ? 1.7 : 1.15);
   const sphere = gpath({ type: 'Sphere' } as any) ?? '', lp = landPath(proj, center, R, diag), gp = graticulePath(proj, center, R, diag);
@@ -89,7 +93,7 @@ export const TravelMap: React.FC<{
   } : null), [geo]);
   const D = (o: any) => gpath(o) ?? '';
   const veh = vehicle ? (() => { const l = legs[vehicle.leg], u = progress[vehicle.leg], s = sliceTo(l, u), a = proj(s.head), b = proj(s.ahead); return a && b ? { l, u, a, ang: Math.atan2(b[1] - a[1], b[0] - a[0]) / RAD + 90, s } : null; })() : null;
-  const screenOf = (ll: LL) => { const q = proj(ll); return q ? toScreen(q[0], q[1], W, H, tilt, cx, cy) : null; };
+  const screenOf = (ll: LL) => { const q = proj(ll); return q ? toScreen(q[0], q[1], W, H, tilt, cx, cy, persp) : null; };
   // 도시명: 축척에 따라 인구 기준을 바꾸고, 정차지와 겹치는 도시는 뺀다
   const minPop = R < 1400 ? Infinity : R < 4000 ? 3e6 : R < 10000 ? 9e5 : R < 30000 ? 2.5e5 : R < 90000 ? 5e4 : 0;
   const cities = cityLabels && geo ? geo.cities.filter((ct) => ct.pop >= minPop && !p.stops.some((s) => km([s.lon, s.lat], [ct.lon, ct.lat]) < Math.max(14, 90000 / R * 6))).map((ct) => ({ ct, q: proj([ct.lon, ct.lat]) })).filter((x) => x.q && x.q[0] > vx0 && x.q[0] < vx1 && x.q[1] > vy0 && x.q[1] < vy1).slice(0, 12) : [];
@@ -97,7 +101,7 @@ export const TravelMap: React.FC<{
 
   return (
     <AbsoluteFill style={{ background: bg ?? c.ocean, overflow: 'hidden' }}>
-      <div style={{ position: 'absolute', inset: 0, perspective: 1500, perspectiveOrigin: '50% 50%' }}>
+      <div style={{ position: 'absolute', inset: 0, perspective: persp, perspectiveOrigin: '50% 50%' }}>
         <div style={{ position: 'absolute', left: W / 2 - LW / 2, top: H / 2 - LH / 2, width: LW, height: LH, transform: `rotateX(${tilt}deg)`, transformOrigin: '50% 50%' }}>
           <svg width={LW} height={LH} style={{ position: 'absolute', left: 0, top: 0 }}>
             <path d={sphere} fill={c.ocean} />

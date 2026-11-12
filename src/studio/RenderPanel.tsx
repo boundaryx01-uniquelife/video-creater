@@ -17,13 +17,13 @@ const post = (url: string, body: unknown = {}) => api(url, { method: 'POST', hea
 const STATUS: Record<RJob['status'], string> = { queued: '대기 중', running: '렌더 중', done: '완료', error: '실패', canceled: '취소됨' };
 
 const JobRow: React.FC<{ j: RJob; onCancel: () => void; onDelete: () => void }> = ({ j, onCancel, onDelete }) => {
-  const mode = j.comp.replace('-video-sample', '');
+  const mode = j.comp.replace('-video-sample', '').replace('-vertical', ''), sfx = j.comp.endsWith('-vertical') ? '-vertical' : '';
   return (
     <li className={`job-row ${j.status}`} data-status={j.status} data-id={j.id}>
       <div className="jtop"><b>{j.name}</b><span className={`badge ${j.status}`}>{STATUS[j.status]}{j.status === 'queued' && j.queuePos ? ` ${j.queuePos}번째` : ''}</span>
         <span className="jbtns">
           {(j.status === 'queued' || j.status === 'running') && <button type="button" onClick={onCancel}>취소</button>}
-          {j.status === 'done' && <a className="dl" href={`${j.url}?name=${mode}-video.mp4`} download>내려받기</a>}
+          {j.status === 'done' && <a className="dl" href={`${j.url}?name=${mode}-video${sfx}.mp4`} download>내려받기</a>}
           {j.status !== 'queued' && j.status !== 'running' && <button type="button" className="danger" onClick={onDelete} aria-label={`${j.name} 삭제`}>삭제</button>}
         </span></div>
       {j.status === 'running' && <div className="jrun"><div className="bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(j.progress * 100)}><i style={{ width: `${Math.round(j.progress * 100)}%` }} /></div>

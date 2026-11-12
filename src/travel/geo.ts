@@ -111,8 +111,8 @@ export const slerp = (a: LL, b: LL, t: number): LL => geoInterpolate(a, b)(t) as
 
 /* ---------- 기울인 지도(CSS 3D)에서 지도 좌표 → 화면 좌표 ---------- */
 export const PERSP = 1500;
-export function toScreen(x: number, y: number, W: number, H: number, tilt: number, cx: number, cy: number) {
-  const th = tilt * RAD, dy = y - cy, dx = x - cx, z = dy * Math.sin(th), s = 1 / (1 - z / PERSP);
+export function toScreen(x: number, y: number, W: number, H: number, tilt: number, cx: number, cy: number, persp = PERSP) {
+  const th = tilt * RAD, dy = y - cy, dx = x - cx, z = dy * Math.sin(th), s = 1 / (1 - z / persp);
   return { x: W / 2 + dx * s, y: H / 2 + dy * Math.cos(th) * s, s };
 }
 

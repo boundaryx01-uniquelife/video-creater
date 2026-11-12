@@ -18,7 +18,9 @@ const sniffAudio = (b) => {
   if (t.startsWith('ID3') || (b[0] === 0xff && (b[1] & 0xe0) === 0xe0)) return 'mp3';
   return null;
 };
-const COMPS = new Set(['event-video-sample', 'travel-video-sample', 'site-video-sample', 'store-video-sample', 'product-video-sample', 'school-video-sample', 'club-video-sample', 'grad-video-sample']);
+// 허용하는 컴포지션: 가로(기본 id)와 세로(`-vertical`, 1080×1920)
+const BASE_COMPS = ['event-video-sample', 'travel-video-sample', 'site-video-sample', 'store-video-sample', 'product-video-sample', 'school-video-sample', 'club-video-sample', 'grad-video-sample'];
+const COMPS = new Set(BASE_COMPS.flatMap((c) => [c, c + '-vertical']));
 const DEFAULTS = { rendersDays: 14, uploadsDays: 60, autoClean: true }; // 정리 정책 기본값(설정에서 바꿀 수 있다)
 const MAX_QUEUE = 20, DAY = 86400e3;
 
