@@ -89,3 +89,4 @@ code { background: #0b0c0f; padding: 1px 6px; border-radius: 5px; }
 .music .lic { margin-top: 12px; color: var(--fg); }
 .aspectrow { margin-top: 10px; }
 .aspectrow label { display: flex; gap: 8px; align-items: center; font-size: 13px; }
+.aspectrow label { white-space: nowrap; } .aspectrow select { flex: 1; }
