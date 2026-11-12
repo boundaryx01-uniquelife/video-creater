@@ -4,6 +4,7 @@ import { STUDIO_MODES } from './registry.ts';
 import { Field } from './Editor';
 import { labelOf } from './labels.ts';
 import { Path, assignByAgenda, assignEvenly, importPhotos, setIn } from './util.ts';
+import { Aspect, SIZES } from '../lib/layout';
 
 const KEY = (id: string) => `studio:v1:${id}`;
 const load = (id: string, fallback: () => any) => { try { const s = localStorage.getItem(KEY(id)); if (s) return JSON.parse(s); } catch { /* 무시 */ } return fallback(); };
@@ -22,6 +23,9 @@ export const StudioApp: React.FC = () => {
   const [props, setProps] = useState<any>(() => load(mode.id, mode.sample));
   const [busy, setBusy] = useState(''), [note, setNote] = useState(''), [job, setJob] = useState<Job | null>(null), [server, setServer] = useState<boolean | null>(null);
   const [scale, setScale] = useState('720'), [seconds, setSeconds] = useState('8');
+  const [aspect, setAspect] = useState<Aspect>(() => { try { return localStorage.getItem('studio:aspect') === '9:16' ? '9:16' : '16:9'; } catch { return '16:9'; } });
+  const size = SIZES.find((z) => z.label === aspect) ?? SIZES[0], vertical = size.height > size.width;
+  useEffect(() => { try { localStorage.setItem('studio:aspect', aspect); } catch { /* 무시 */ } }, [aspect]);
   const player = useRef<PlayerRef>(null), bulkRef = useRef<HTMLInputElement>(null), importRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { fetch('/api/health').then((r) => setServer(r.ok)).catch(() => setServer(false)); }, []);
@@ -46,7 +50,7 @@ export const StudioApp: React.FC = () => {
   const render = async () => {
     setJob({ id: '', status: 'running', stage: '요청 중', progress: 0 });
     try {
-      const r = await fetch('/api/render', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ comp: mode.comp, props, scale, seconds: Number(seconds) }) }), j = await r.json();
+      const r = await fetch('/api/render', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ comp: mode.comp + size.suffix, props, scale, seconds: Number(seconds) }) }), j = await r.json();
       if (!r.ok) throw new Error(j.error); const id = j.id as string;
       for (;;) { await new Promise((ok) => setTimeout(ok, 1200)); const s: Job = await (await fetch(`/api/render/${id}`)).json(); setJob(s); if (s.status !== 'running') break; }
     } catch (e) { setJob({ id: '', status: 'error', stage: '', progress: 0, error: String((e as Error).message) }); }
@@ -76,14 +80,17 @@ export const StudioApp: React.FC = () => {
           ))}
         </aside>
         <main>
-          <div className="player">
+          <div className={'stage' + (vertical ? ' v' : '')}>
+          <div className={'player' + (vertical ? ' v' : '')}>
             <Boundary k={JSON.stringify(props).length + ':' + plan.total}>
               {plan.err ? <div className="perr">입력 값으로 영상을 구성할 수 없습니다.<small>{plan.err}</small></div> :
-                <Player ref={player} key={mode.id} component={mode.Component} inputProps={props} durationInFrames={Math.max(1, plan.total)} fps={30} compositionWidth={1920} compositionHeight={1080} initialFrame={Math.min(75, Math.max(0, plan.total - 1))} controls loop style={{ width: '100%' }} acknowledgeRemotionLicense />}
+                <Player ref={player} key={mode.id + aspect} component={mode.Component} inputProps={props} durationInFrames={Math.max(1, plan.total)} fps={30} compositionWidth={size.width} compositionHeight={size.height} initialFrame={Math.min(75, Math.max(0, plan.total - 1))} controls loop style={{ width: '100%', height: '100%' }} acknowledgeRemotionLicense />}
             </Boundary>
           </div>
+          <div className="side">
           <div className="scenes">{plan.scenes.map((s, i) => <button key={i} onClick={() => { player.current?.pause(); player.current?.seekTo(Math.min(plan.total - 1, s.from + 40)); }}>{s.label}</button>)}<span>{(plan.total / 30).toFixed(1)}초</span></div>
           <div className="render">
+            <label>화면 비율<select value={aspect} onChange={(e) => { player.current?.pause(); setAspect(e.target.value as Aspect); setJob(null); }}>{SIZES.map((z) => <option key={z.label} value={z.label}>{z.label === '16:9' ? '16:9 가로 (1920×1080)' : '9:16 세로 (1080×1920)'}</option>)}</select></label>
             <label>범위<select value={seconds} onChange={(e) => setSeconds(e.target.value)}><option value="8">처음 8초 (빠른 확인)</option><option value="0">전체</option></select></label>
             <label>화질<select value={scale} onChange={(e) => setScale(e.target.value)}><option value="720">720p</option><option value="1080">1080p</option></select></label>
             <button className="primary" onClick={render} disabled={!server || job?.status === 'running' || !!plan.err}>MP4 만들기</button>
@@ -91,9 +98,11 @@ export const StudioApp: React.FC = () => {
             {hasBlob && <span className="hint">서버에 저장되지 않은 사진이 있어 MP4에는 나오지 않습니다.</span>}
             {job && <div className="job">
               {job.status === 'running' && <><div className="bar"><i style={{ width: `${Math.round(job.progress * 100)}%` }} /></div><span>{job.stage} {Math.round(job.progress * 100)}%</span></>}
-              {job.status === 'done' && <a href={`${job.url}?name=${mode.id}-video.mp4`}>완성된 MP4 내려받기</a>}
+              {job.status === 'done' && <a href={`${job.url}?name=${mode.id}-video${size.suffix}.mp4`}>완성된 MP4 내려받기</a>}
               {job.status === 'error' && <span className="err">실패: {job.error}</span>}
             </div>}
+          </div>
+          </div>
           </div>
         </main>
       </div>

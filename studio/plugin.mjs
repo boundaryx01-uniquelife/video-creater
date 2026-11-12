@@ -6,7 +6,9 @@ import crypto from 'node:crypto';
 
 const TYPES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
 const MIME = { jpg: 'image/jpeg', png: 'image/png', webp: 'image/webp', mp4: 'video/mp4' };
-const COMPS = new Set(['event-video-sample', 'travel-video-sample', 'site-video-sample', 'store-video-sample', 'product-video-sample', 'school-video-sample', 'club-video-sample', 'grad-video-sample']);
+// 허용하는 컴포지션: 가로(기본 id)와 세로(`-vertical`, 1080×1920)
+const BASE_COMPS = ['event-video-sample', 'travel-video-sample', 'site-video-sample', 'store-video-sample', 'product-video-sample', 'school-video-sample', 'club-video-sample', 'grad-video-sample'];
+const COMPS = new Set(BASE_COMPS.flatMap((c) => [c, c + '-vertical']));
 
 export function studio() {
   const root = process.cwd(), dir = path.join(root, '.studio'), up = path.join(dir, 'uploads'), out = path.join(dir, 'renders');
