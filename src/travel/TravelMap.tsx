@@ -10,9 +10,12 @@ type Tex = Texture & { data: Uint8ClampedArray };
 type Assets = { geo: GeoExtras | null; tex: Tex[] };
 
 /* ---------- 에셋 로딩(지도 레이어 JSON, 지형 텍스처). 장면마다 다시 받지 않도록 모듈 캐시 ---------- */
+/** 에셋 주소: 'media/..' 같은 상대 경로는 public 폴더(staticFile), '/..'·http(s) 는 그대로(스튜디오가 만든 /studio-assets/.. 등) */
+const isAbs = (s: string) => /^(https?:|blob:|data:|\/)/.test(s);
+const assetUrl = (s: string) => (isAbs(s) ? s : staticFile(s));
 const texCache = new Map<string, Promise<Tex>>(), geoCache = new Map<string, Promise<GeoExtras>>();
-const loadTex = (t: Texture) => { if (!texCache.has(t.src)) texCache.set(t.src, new Promise<Tex>((res, rej) => { const im = new Image(); im.onload = () => { const c = document.createElement('canvas'); c.width = im.naturalWidth; c.height = im.naturalHeight; const g = c.getContext('2d', { willReadFrequently: true })!; g.drawImage(im, 0, 0); res({ ...t, w: c.width, h: c.height, data: g.getImageData(0, 0, c.width, c.height).data }); }; im.onerror = () => rej(new Error('지형 텍스처 로드 실패: ' + t.src)); im.src = staticFile(t.src); })); return texCache.get(t.src)!; };
-const loadGeo = (src: string) => { if (!geoCache.has(src)) geoCache.set(src, fetch(staticFile(src)).then((r) => r.json())); return geoCache.get(src)!; };
+const loadTex = (t: Texture) => { if (!texCache.has(t.src)) texCache.set(t.src, new Promise<Tex>((res, rej) => { const im = new Image(); if (/^https?:/.test(t.src)) im.crossOrigin = 'anonymous'; im.onload = () => { const c = document.createElement('canvas'); c.width = im.naturalWidth; c.height = im.naturalHeight; const g = c.getContext('2d', { willReadFrequently: true })!; g.drawImage(im, 0, 0); res({ ...t, w: c.width, h: c.height, data: g.getImageData(0, 0, c.width, c.height).data }); }; im.onerror = () => rej(new Error('지형 텍스처 로드 실패: ' + t.src)); im.src = assetUrl(t.src); })); return texCache.get(t.src)!; };
+const loadGeo = (src: string) => { if (!geoCache.has(src)) geoCache.set(src, fetch(assetUrl(src)).then((r) => { if (!r.ok) throw new Error('지도 레이어 로드 실패: ' + src); return r.json(); })); return geoCache.get(src)!; };
 export function useTravelAssets(p: TravelProps): Assets | null {
   const none = !p.assets?.geo && !p.assets?.terrain?.length;
   const [st, setSt] = useState<Assets | null>(none ? { geo: null, tex: [] } : null);

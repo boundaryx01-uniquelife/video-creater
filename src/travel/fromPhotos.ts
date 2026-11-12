@@ -4,8 +4,9 @@ import type { LL, Stop, TravelProps } from './types.ts';
 import { km } from './geo.ts';
 
 export type PlaceLite = { n: string; lon: number; lat: number; pop: number; tz: string };
-export type FromPhotosOpts = { radiusKm?: number; minPhotos?: number; minDwellMin?: number; maxStops?: number; photosPerStop?: number; srcOf: (p: Photo) => string | null };
-type Cl = { ps: Photo[]; lon: number; lat: number };
+/** attachNoGps: GPS 없이 촬영 시각만 있는 사진을, 머문 시간(앞뒤 10분) 안에 찍힌 정차지의 사진 후보에 넣는다(기본 꺼짐) */
+export type FromPhotosOpts = { radiusKm?: number; minPhotos?: number; minDwellMin?: number; maxStops?: number; photosPerStop?: number; attachNoGps?: boolean; srcOf: (p: Photo) => string | null };
+type Cl = { ps: Photo[]; lon: number; lat: number; extra?: Photo[] };
 
 const z2 = (n: number) => String(n).padStart(2, '0');
 const D = (t: number) => new Date(t * 60000);
@@ -27,7 +28,7 @@ export function nameOf(lon: number, lat: number, places: PlaceLite[]): { name: s
 }
 
 /** 사진(GPS·촬영 시각·품질 점수) → 여행 정차지와 영상 기본 정보. 이름은 자동 추정이므로 사용자가 고칠 수 있어야 한다 */
-export function travelFromPhotos(photos: Photo[], places: PlaceLite[], o: FromPhotosOpts): { info: TravelProps['info']; stops: Stop[]; dropped: { noGps: number; transit: number }; cruise: number[] } {
+export function travelFromPhotos(photos: Photo[], places: PlaceLite[], o: FromPhotosOpts): { info: TravelProps['info']; stops: Stop[]; dropped: { noGps: number; transit: number; attached: number }; cruise: number[]; candidates: PhotoSpec[][] } {
   const R = o.radiusKm ?? 3, minN = o.minPhotos ?? 3, minDwell = o.minDwellMin ?? 20, maxStops = o.maxStops ?? 7, per = o.photosPerStop ?? 6;
   const gp = photos.filter((p) => p.latitude != null && p.longitude != null && !p.placeInferred).sort((a, b) => a.t - b.t);
   // 1) 시간순으로 훑으며 반경 R을 벗어나면 새 묶음
@@ -41,17 +42,22 @@ export function travelFromPhotos(photos: Photo[], places: PlaceLite[], o: FromPh
   for (let i = 0; i < cls.length - 1; ) if (km([cls[i].lon, cls[i].lat], [cls[i + 1].lon, cls[i + 1].lat]) <= R) merge(i); else i++;
   while (cls.length > maxStops) { let bi = 0, bd = 1e9; for (let i = 0; i < cls.length - 1; i++) { const d = km([cls[i].lon, cls[i].lat], [cls[i + 1].lon, cls[i + 1].lat]); if (d < bd) { bd = d; bi = i; } } merge(bi); }
   void before;
+  // 3.5) GPS 없는 사진: 어느 정차지의 머문 시간(앞뒤 10분)에 찍혔다면 그 정차지의 사진 후보로
+  let attached = 0;
+  if (o.attachNoGps) for (const p of photos.filter((q) => q.latitude == null || q.longitude == null)) {
+    const c = cls.find((x) => p.t >= x.ps[0].t - 10 && p.t <= x.ps[x.ps.length - 1].t + 10); if (c) { (c.extra ??= []).push(p); attached++; } }
   // 4) 이름·시각·사진 선택
-  const seen = new Map<string, LL>();
+  const seen = new Map<string, LL>(), cand: PhotoSpec[][] = [];
   const stops: Stop[] = cls.map((c) => {
     const nm = nameOf(c.lon, c.lat, places); let name = nm.name; const first = seen.get(nm.name);
     if (first) { const d = km(first, [c.lon, c.lat]); if (d > 1) name = `${nm.name} ${dirOf(first, [c.lon, c.lat])}쪽 ${d < 10 ? d.toFixed(1) : Math.round(d)}km`; } else seen.set(nm.name, [c.lon, c.lat]);
     const t0 = c.ps[0].t, t1 = c.ps[c.ps.length - 1].t, d0 = D(t0);
-    const sub = `${d0.getUTCMonth() + 1}월 ${d0.getUTCDate()}일 · 사진 ${c.ps.length}장`;
-    const best = new Map<number, Photo>(); for (const p of c.ps) { if (!o.srcOf(p)) continue; const g = p.group ?? p.id, b = best.get(g); if (!b || p.score > b.score) best.set(g, p); }
+    const sub = `${d0.getUTCMonth() + 1}월 ${d0.getUTCDate()}일 · 사진 ${c.ps.length + (c.extra?.length ?? 0)}장`;
+    const pool = c.extra ? [...c.ps, ...c.extra] : c.ps, best = new Map<number, Photo>(); for (const p of pool) { if (!o.srcOf(p)) continue; const g = p.group ?? p.id, b = best.get(g); if (!b || p.score > b.score) best.set(g, p); }
     const top = [...best.values()].sort((a, b) => b.score - a.score).slice(0, per), hero = top.find((p) => (p.aspect ?? 1) >= 1.2) ?? top[0];
     const ordered = hero ? [hero, ...top.filter((p) => p !== hero).sort((a, b) => a.t - b.t)] : [];
     const specs: PhotoSpec[] = ordered.map((p, i) => ({ src: o.srcOf(p)!, aspect: p.aspect ?? 1.5, time: hm(p.t), date: '', wd: '', hex: '#ff6b4a', exif: '', model: String(p.Model ?? ''), fy: 0.42, fx: 0.5, cap: { chip: hm(p.t), title: i === 0 ? name : '', sub: i === 0 ? sub : '' } }));
+    cand.push(pool.filter((p) => o.srcOf(p)).sort((a, b) => a.t - b.t).map((p) => ({ src: o.srcOf(p)!, aspect: p.aspect ?? 1.5, time: hm(p.t), date: '', wd: '', hex: '#ff6b4a', exif: '', model: String(p.Model ?? ''), fy: 0.42, fx: 0.5, cap: { chip: hm(p.t), title: '', sub: '' }, ts: p.t * 60000 })));
     return { name, sub, lat: +c.lat.toFixed(5), lon: +c.lon.toFixed(5), arrive: wall(t0), depart: wall(t1), tz: nm.tz || undefined, photos: specs };
   });
   const a = D(gp[0]?.t ?? 0), b = D(gp[gp.length - 1]?.t ?? 0), days = new Set(gp.map((p) => Math.floor(p.t / 1440))).size;
@@ -60,5 +66,5 @@ export function travelFromPhotos(photos: Photo[], places: PlaceLite[], o: FromPh
   // 구간별 순항 속도 힌트: 이동 중에 찍힌 사진까지 포함해, 연속한 두 GPS 사진 사이(5km 이상)의 최고 속도
   const cruise = cls.slice(0, -1).map((c, i) => { const t0 = c.ps[c.ps.length - 1].t, t1 = cls[i + 1].ps[0].t, seq = gp.filter((p) => p.t >= t0 && p.t <= t1); let v = 0;
     for (let k = 1; k < seq.length; k++) { const d = km([seq[k - 1].longitude!, seq[k - 1].latitude!], [seq[k].longitude!, seq[k].latitude!]), dt = (seq[k].t - seq[k - 1].t) / 60; if (d >= 5 && dt > 0.02) v = Math.max(v, d / dt); } return Math.round(v); });
-  return { info, stops, dropped: { noGps: photos.length - gp.length, transit }, cruise };
+  return { info, stops, dropped: { noGps: photos.length - gp.length, transit, attached }, cruise, candidates: cand };
 }
