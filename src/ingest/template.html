@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Photo Ingest — 사진 메타데이터 추출</title>
+<style>
+:root{--bg:#0e0f12;--p:#16181d;--l:#272a33;--f:#eceef2;--m:#8b90a0;--a:#e8e1d2}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--f);font:15px/1.55 system-ui,'Malgun Gothic','Apple SD Gothic Neo',sans-serif}
+.w{max-width:860px;margin:0 auto;padding:40px 24px 80px}
+h1{font-size:24px;margin:0 0 6px}p.s{color:var(--m);margin:0 0 28px}
+.drop{border:1.5px dashed #3a3e4a;border-radius:14px;padding:44px 20px;text-align:center;background:var(--p);transition:.15s}
+.drop.on{border-color:var(--a);background:#1b1c20}
+.drop b{display:block;font-size:17px;margin-bottom:6px}.drop span{color:var(--m);font-size:13px}
+.row{display:flex;gap:10px;justify-content:center;margin-top:18px;flex-wrap:wrap}
+button,label.btn{background:#22252d;color:var(--f);border:1px solid var(--l);border-radius:9px;padding:10px 16px;font:inherit;cursor:pointer}
+button:hover,label.btn:hover{border-color:var(--a)}button.pri{background:var(--a);color:#17120a;border:0;font-weight:700}
+input[type=file]{display:none}.opt{margin:18px 0;color:var(--m);font-size:13px;display:flex;gap:10px;align-items:center;justify-content:center}
+.opt input{width:70px;background:#0e1014;border:1px solid var(--l);color:var(--f);border-radius:6px;padding:5px 8px}
+.bar{height:6px;background:#22252d;border-radius:9px;overflow:hidden;margin:22px 0 8px}.bar i{display:block;height:100%;width:0;background:var(--a);transition:width .1s}
+#log{color:var(--m);font-size:13px;min-height:20px}
+.sum{display:none;margin-top:28px;background:var(--p);border:1px solid var(--l);border-radius:14px;padding:22px}
+.sum h2{margin:0 0 14px;font-size:17px}.kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
+.kv div{background:#0e1014;border-radius:9px;padding:10px 12px}.kv small{color:var(--m);display:block;font-size:11px;letter-spacing:.06em}.kv b{font-size:16px}
+.sw{display:flex;height:34px;border-radius:7px;overflow:hidden;margin:10px 0 18px}.sw i{flex:1}
+.priv{margin-top:34px;color:var(--m);font-size:12.5px;border-top:1px solid var(--l);padding-top:16px}
+</style></head><body><div class="w">
+<h1>Photo Ingest</h1>
+<p class="s">사진 폴더(또는 zip)를 읽어 촬영 메타데이터와 작은 미리보기만 뽑습니다. 원본 사진은 어디로도 전송되지 않고 이 브라우저 안에서만 처리됩니다.</p>
+<div class="drop" id="drop"><b>여기에 폴더 / 사진 / zip 파일을 끌어다 놓으세요</b><span>JPG · PNG · WebP · HEIC(메타데이터만) · ZIP</span>
+<div class="row"><label class="btn">폴더 선택<input id="fDir" type="file" webkitdirectory multiple></label>
+<label class="btn">사진·zip 선택<input id="fFiles" type="file" multiple accept="image/*,.zip,.heic,.heif"></label></div></div>
+<div class="opt">미리보기 이미지 최대 <input id="maxThumb" type="number" value="80" min="0" max="600"> 장 (시간순으로 고르게 선택, 메타데이터는 전부 포함)</div>
+<div class="bar"><i id="bar"></i></div><div id="log"></div>
+<div class="sum" id="sum"><h2>결과</h2><div class="kv" id="kv"></div><div class="sw" id="sw"></div>
+<div class="row" style="justify-content:flex-start"><button class="pri" id="dl">결과 파일 저장 (photo-bundle.zip)</button></div>
+<p style="color:var(--m);font-size:13px;margin:12px 0 0">저장된 zip을 Claude에게 전달해 주세요. (보통 10~30MB)</p></div>
+<div class="priv">개인정보: 이 파일은 네트워크 요청을 하지 않습니다. 결과 zip에는 촬영시각·GPS 좌표 등 메타데이터가 들어 있으니, 공유 전에 민감한 위치가 있는지 확인하세요.</div>
+</div><script>/*__BUNDLE__*/</script></body></html>
