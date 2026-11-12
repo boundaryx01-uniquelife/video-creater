@@ -3,6 +3,7 @@ import { Player, PlayerRef } from '@remotion/player';
 import { STUDIO_MODES } from './registry.ts';
 import { Field } from './Editor';
 import { labelOf } from './labels.ts';
+import { GradAuto } from './GradAuto';
 import { Path, assignByAgenda, assignEvenly, importPhotos, setIn } from './util.ts';
 
 const KEY = (id: string) => `studio:v1:${id}`;
@@ -71,6 +72,7 @@ export const StudioApp: React.FC = () => {
           </div>
           {(busy || note) && <div className="note">{busy || note}</div>}
           {mode.note && <div className="note warn">{mode.note}</div>}
+          {mode.id === 'grad' && <GradAuto props={props} setProps={setProps} setNote={setNote} />}
           {mode.sections.filter((k) => props[k] !== undefined).map((k, i) => (
             <details className="sec" key={mode.id + k} open={i === 0}><summary>{labelOf(k)}</summary><div className="body">{props[k] && typeof props[k] === 'object' && !Array.isArray(props[k]) ? Object.entries(props[k]).map(([kk, x]) => <Field key={kk} k={kk} v={x} path={[k, kk]} ctx={ctx} depth={1} />) : <Field k={k} v={props[k]} path={[k]} ctx={ctx} />}</div></details>
           ))}
