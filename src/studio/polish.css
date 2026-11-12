@@ -1,0 +1,44 @@
+/* 스튜디오 완성도 기능(실행 취소, 장면 편집, 렌더 대기열, 끌어다 놓기)의 스타일 */
+:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
+.tools .undo { display: inline-flex; gap: 4px; }
+.tools .undo button { padding: 7px 10px; }
+.itemtools { margin-left: auto; display: inline-flex; gap: 2px; }
+.itemtools .x { padding: 3px 7px; }
+.mut { color: var(--mut); font-weight: 400; }
+.sceneslot { margin-top: 10px; padding: 8px 10px 10px; border: 1px dashed var(--line); border-radius: 8px; background: rgba(255,255,255,.02); }
+.sceneslot.empty { padding: 6px; }
+.scenehead { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.scenehead b { font-size: 12px; white-space: nowrap; }
+.scenehead select { flex: 1; min-width: 0; }
+.scenehead button { white-space: nowrap; padding: 4px 9px; font-size: 12px; }
+.strip.dropping { outline: 2px dashed var(--acc); outline-offset: 3px; border-radius: 8px; }
+.strip .thumbs button[draggable=true] { cursor: grab; }
+.dropveil { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.6); color: #fff; font-size: 22px; font-weight: 800; pointer-events: none; border: 4px dashed var(--acc); }
+.unsaved button { margin-left: 8px; padding: 3px 10px; }
+.note.err { color: #ffb4a8; }
+
+.render.rq { align-items: flex-end; }
+.rq .jobs { flex-basis: 100%; list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 6px; }
+.job-row { background: #0b0c0f; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+.job-row.error { border-color: #5b2d2d; }
+.jtop { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.jtop b { font-weight: 700; }
+.jbtns { margin-left: auto; display: inline-flex; gap: 6px; align-items: center; }
+.jbtns button, .jbtns .dl { padding: 3px 10px; font-size: 12px; }
+.dl { background: var(--acc); color: #17120a; border-radius: 8px; font-weight: 800; text-decoration: none; }
+.badge { font-size: 11px; padding: 1px 8px; border-radius: 99px; background: var(--panel2); border: 1px solid var(--line); color: var(--mut); }
+.badge.running { color: var(--acc); border-color: var(--acc); }
+.badge.done { color: #9fe0a8; }
+.badge.error { color: #ff9a9a; }
+.jrun { display: flex; align-items: center; gap: 10px; margin-top: 6px; font-size: 12px; color: var(--mut); }
+.jrun .bar { max-width: 320px; }
+.jerr pre { white-space: pre-wrap; font-size: 11px; color: var(--mut); max-height: 160px; overflow: auto; margin: 4px 0 0; }
+.warnline { color: #e9c98a; flex-basis: 100%; }
+.storage { flex-basis: 100%; margin-top: 4px; border-top: 1px solid var(--line); padding-top: 8px; }
+.storage summary { cursor: pointer; font-size: 12px; color: var(--mut); }
+.storage .srow { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; margin-top: 8px; font-size: 12px; }
+.storage .srow label { width: 150px; margin: 0; }
+.meter { display: inline-block; width: 140px; height: 8px; background: #0b0c0f; border-radius: 9px; overflow: hidden; }
+.meter i { display: block; height: 100%; background: var(--acc); }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.job-row .bar { background: #2a2e38; min-width: 160px; }

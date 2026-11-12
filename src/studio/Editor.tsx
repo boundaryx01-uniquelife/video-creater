@@ -1,9 +1,12 @@
 import React, { useRef, useState } from 'react';
 import type { PhotoSpec } from '../analysis/videoData.ts';
 import { HIDE, MIN1, labelOf } from './labels.ts';
-import { Path, byTime, importPhoto, importPhotos, urlOf } from './util.ts';
+import { Path, byTime, importPhoto, importPhotos, importSummary, urlOf } from './util.ts';
+import { ACCEPT } from './image.ts';
+import { ChapterList, ExtraList } from './Scenes';
+import './polish.css';
 
-type Ctx = { onChange: (path: Path, v: any) => void; chip: 'time' | 'date' | 'none'; busy: (s: string) => void };
+export type Ctx = { onChange: (path: Path, v: any) => void; chip: 'time' | 'date' | 'none'; busy: (s: string) => void; modeId?: string; root?: any };
 const isColor = (v: any) => typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v);
 const isPhotoKey = (k: string) => /photo$/i.test(k);
 const prim = (v: any) => v == null || typeof v !== 'object';
@@ -17,7 +20,7 @@ const ImagePick: React.FC<{ src: string; onPick: (src: string) => void; ctx: Ctx
     <span className="imgpick">
       <img src={urlOf(src)} alt="" />
       <button type="button" onClick={() => ref.current?.click()}>사진 변경</button>
-      <input ref={ref} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={async (e) => { const f = e.target.files?.[0]; e.target.value = ''; if (!f) return; ctx.busy('사진 처리 중…'); try { onPick((await importPhoto(f, 'none')).src); } finally { ctx.busy(''); } }} />
+      <input ref={ref} type="file" accept={ACCEPT} hidden onChange={async (e) => { const f = e.target.files?.[0]; e.target.value = ''; if (!f) return; ctx.busy('사진 처리 중…'); try { onPick((await importPhoto(f, 'none')).src); ctx.busy(''); } catch (err) { ctx.busy(`${f.name}: ${(err as Error).message || '읽을 수 없는 파일입니다.'}`); } }} />
     </span>
   );
 };
@@ -28,13 +31,24 @@ const PhotoStrip: React.FC<{ photos: PhotoSpec[]; path: Path; ctx: Ctx }> = ({ p
   const set = (list: PhotoSpec[]) => ctx.onChange(path, list);
   const move = (d: number) => { const j = si + d; if (j < 0 || j >= photos.length) return; const l = [...photos]; [l[si], l[j]] = [l[j], l[si]]; set(l); setSel(j); };
   const cap = (k: 'chip' | 'title' | 'sub', v: string) => set(photos.map((p, i) => (i === si ? { ...p, cap: { chip: '', title: '', sub: '', ...p.cap, [k]: v } } : p)));
+  const addFiles = async (fs: File[]) => { if (!fs.length) return; const r = await importPhotos(fs, ctx.chip, (d, t) => ctx.busy(`사진 처리 중… ${d}/${t}`)); ctx.busy(importSummary(r)); if (r.photos.length) set([...photos, ...r.photos]); };
+  const reorder = (from: number, to: number) => { if (from === to || from < 0 || to < 0 || from >= photos.length || to >= photos.length) return; const l = [...photos], [m] = l.splice(from, 1); l.splice(to, 0, m); set(l); setSel(to); };
+  const [over, setOver] = useState(false);
+  const key = (i: number) => (e: React.KeyboardEvent) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return; const d = e.key === 'ArrowLeft' ? -1 : 1; e.preventDefault();
+    if (e.altKey) { reorder(i, i + d); requestAnimationFrame(() => (e.currentTarget.parentElement?.children[Math.max(0, Math.min(photos.length - 1, i + d))] as HTMLElement | undefined)?.focus()); }
+    else { const j = Math.max(0, Math.min(photos.length - 1, i + d)); setSel(j); (e.currentTarget.parentElement?.children[j] as HTMLElement | undefined)?.focus(); }
+  };
   return (
-    <div className="strip">
-      <div className="thumbs">
-        {photos.map((p, i) => (<button type="button" key={i} className={i === si ? 'on' : ''} onClick={() => setSel(i)} title={p.cap?.chip || ''}><img src={urlOf(p.src)} alt="" />{i === 0 && <em>대표</em>}</button>))}
+    <div className={`strip${over ? ' dropping' : ''}`} onDragOver={(e) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); e.stopPropagation(); setOver(true); } }} onDragLeave={() => setOver(false)}
+      onDrop={(e) => { setOver(false); if (!e.dataTransfer.files.length) return; e.preventDefault(); e.stopPropagation(); addFiles(Array.from(e.dataTransfer.files)); }}>
+      <div className="thumbs" role="group" aria-label="사진 목록. 좌우 화살표로 선택, Alt+좌우 화살표로 순서 변경">
+        {photos.map((p, i) => (<button type="button" key={i} className={i === si ? 'on' : ''} draggable aria-pressed={i === si} aria-label={`사진 ${i + 1}${i === 0 ? ' (대표)' : ''}${p.cap?.chip ? ' ' + p.cap.chip : ''}`} onClick={() => setSel(i)} onKeyDown={key(i)} title={p.cap?.chip || ''}
+          onDragStart={(e) => { e.dataTransfer.setData('application/x-photo-idx', String(i)); e.dataTransfer.effectAllowed = 'move'; }}
+          onDragOver={(e) => { if (e.dataTransfer.types.includes('application/x-photo-idx')) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; } }}
+          onDrop={(e) => { const f = e.dataTransfer.getData('application/x-photo-idx'); if (f === '') return; e.preventDefault(); e.stopPropagation(); reorder(Number(f), i); }}><img src={urlOf(p.src)} alt="" draggable={false} />{i === 0 && <em>대표</em>}</button>))}
         <button type="button" className="add" onClick={() => ref.current?.click()}>＋ 사진</button>
-        <input ref={ref} type="file" accept="image/jpeg,image/png,image/webp" multiple hidden onChange={async (e) => { const fs = Array.from(e.target.files ?? []); e.target.value = ''; if (!fs.length) return;
-          const r = await importPhotos(fs, ctx.chip, (d, t) => ctx.busy(`사진 처리 중… ${d}/${t}`)); ctx.busy(r.failed.length ? `읽지 못한 파일 ${r.failed.length}개: ${r.failed.slice(0, 3).join(', ')}` : ''); if (r.photos.length) set([...photos, ...r.photos]); }} />
+        <input ref={ref} type="file" accept={ACCEPT} multiple hidden onChange={(e) => { const fs = Array.from(e.target.files ?? []); e.target.value = ''; addFiles(fs); }} />
       </div>
       {cur && (
         <div className="capedit">
@@ -56,19 +70,23 @@ const PhotoStrip: React.FC<{ photos: PhotoSpec[]; path: Path; ctx: Ctx }> = ({ p
 };
 
 const Prim: React.FC<{ k: string; v: any; path: Path; ctx: Ctx; bare?: boolean }> = ({ k, v, path, ctx, bare }) => {
-  const on = (x: any) => ctx.onChange(path, x); let input: React.ReactNode;
-  if (typeof v === 'boolean') input = <input type="checkbox" checked={v} onChange={(e) => on(e.target.checked)} />;
-  else if (typeof v === 'number') input = <input type="number" value={Number.isFinite(v) ? v : 0} step="any" onChange={(e) => on(e.target.value === '' ? 0 : Number(e.target.value))} />;
+  const on = (x: any) => ctx.onChange(path, x); let input: React.ReactNode; const aria = bare ? { 'aria-label': labelOf(k) } : {};
+  if (typeof v === 'boolean') input = <input {...aria} type="checkbox" checked={v} onChange={(e) => on(e.target.checked)} />;
+  else if (typeof v === 'number') input = <input {...aria} type="number" value={Number.isFinite(v) ? v : 0} step="any" onChange={(e) => on(e.target.value === '' ? 0 : Number(e.target.value))} />;
   else if (isPhotoKey(k)) input = <ImagePick src={v} onPick={on} ctx={ctx} />;
   else if (isColor(v)) input = <span className="color"><input type="color" value={v} onChange={(e) => on(e.target.value)} /><input value={v} onChange={(e) => on(e.target.value)} /></span>;
-  else if (k === 'style') input = <select value={v} onChange={(e) => on(e.target.value)}><option value="fast">빠르게</option><option value="steady">보통</option><option value="slow">느리게</option></select>;
-  else if (String(v).includes('\n') || ['text', 'quote'].includes(k) || (k === 'title' && path.length <= 2)) input = <textarea rows={2} value={v ?? ''} onChange={(e) => on(e.target.value)} />;
-  else input = <input value={v ?? ''} onChange={(e) => on(e.target.value)} />;
+  else if (k === 'style') input = <select {...aria} value={v} onChange={(e) => on(e.target.value)}><option value="fast">빠르게</option><option value="steady">보통</option><option value="slow">느리게</option></select>;
+  else if (String(v).includes('\n') || ['text', 'quote'].includes(k) || (k === 'title' && path.length <= 2)) input = <textarea {...aria} rows={2} value={v ?? ''} onChange={(e) => on(e.target.value)} />;
+  else input = <input {...aria} value={v ?? ''} onChange={(e) => on(e.target.value)} />;
   return bare ? <>{input}</> : <label className={typeof v === 'boolean' ? 'check' : ''}>{labelOf(k)}{input}</label>;
 };
 
 export const Field: React.FC<{ k: string; v: any; path: Path; ctx: Ctx; depth?: number }> = ({ k, v, path, ctx, depth = 0 }) => {
   if (HIDE.has(k) || v === undefined) return null;
+  if (Array.isArray(v) && ctx.modeId) {
+    if (k === 'chapters' && v.length && v[0]?.card) return <ChapterList chapters={v} path={path} ctx={ctx} depth={depth} />;
+    if (k === 'opening' || k === 'closing') return <ExtraList k={k} list={v} path={path} ctx={ctx} depth={depth} />;
+  }
   if (Array.isArray(v)) {
     if (k === 'photos' && v.length && typeof v[0] === 'object') return <div className="group"><div className="glabel">{labelOf(k)} <small>{v.length}장 · 첫 사진이 대표</small></div><PhotoStrip photos={v} path={path} ctx={ctx} /></div>;
     if (k === 'names') return <label>{labelOf(k)}<textarea rows={6} value={v.join('\n')} onChange={(e) => ctx.onChange(path, e.target.value.split('\n').map((x) => x.trim()).filter(Boolean))} /></label>;
