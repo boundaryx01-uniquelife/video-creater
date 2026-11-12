@@ -1,7 +1,8 @@
 import React, { useMemo } from 'react';
-import { AbsoluteFill, Img, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
+import { AbsoluteFill, Img, interpolate, useCurrentFrame } from 'remotion';
 import type { DataIntroProps } from '../analysis/introData.ts';
 import { easeBack, easeInOut, easeOut, lerp, prog, resolveSrc } from '../lib/common';
+import { useLayout, wrapTitle } from '../lib/layout';
 
 const F = `'Pretendard','Noto Sans KR','Inter',sans-serif`;
 const TNUM: React.CSSProperties = { fontVariantNumeric: 'tabular-nums', fontFeatureSettings: '"tnum"' };
@@ -11,10 +12,10 @@ const mixc = (a: number[], b: number[], t: number) => `rgb(${a.map((v, i) => Mat
 /** 데이터 인트로 "Chrono" — 사진 한 장 = 점 하나(x: 날짜, y: 시각, 색: 사진 고유색). 점에서 사진이 펼쳐지고 점들은 하단 바코드 띠가 된다 */
 export const DataIntro: React.FC<DataIntroProps> = (p) => {
   const frame = useCurrentFrame();
-  const { width: W, height: H } = useVideoConfig();
+  const { W, H, PAD, portrait } = useLayout();
   const dark = p.mode === 'dark';
   const paper = dark ? '#0e0e0d' : '#ecebe5', ink = dark ? [242, 241, 236] : [17, 17, 17];
-  const PAD = Math.round(W * 0.0625), HMIN = 5, HMAX = 24;
+  const HMIN = 5, HMAX = 24;
   const plotT = Math.round(H * 0.17), plotB = Math.round(H * 0.84), stripT = H - Math.round(H * 0.175), stripB = H - Math.round(H * 0.075);
   const px = (d: number) => PAD + (d / p.spanDays) * (W - 2 * PAD);
   const py = (h: number, a: number, b: number) => a + ((clamp(h, HMIN, HMAX) - HMIN) / (HMAX - HMIN)) * (b - a);
@@ -35,7 +36,8 @@ export const DataIntro: React.FC<DataIntroProps> = (p) => {
   const push = interpolate(frame, [54, 150], [1.12, 1.03], { extrapolateLeft: 'clamp' });
 
   // 타이틀
-  const fs = Math.min(Math.round(H * 0.215), Math.round((W * 0.66) / (Array.from(p.title).length * 0.92)));
+  const tLines = portrait ? wrapTitle([p.title], 8) : [p.title], tMax = Math.max(...tLines.map((l) => Array.from(l).length));
+  const fs = portrait ? Math.min(Math.round(H * 0.095), Math.round((W - PAD * 2) / (tMax * 0.92))) : Math.min(Math.round(H * 0.215), Math.round((W * 0.66) / (Array.from(p.title).length * 0.92)));
   const tp = prog(frame, 82, 22, easeOut), tp2 = prog(frame, 92, 22, easeOut);
   const wipe = prog(frame, 140, 10, easeInOut);
 
@@ -94,7 +96,7 @@ export const DataIntro: React.FC<DataIntroProps> = (p) => {
 
       {/* 카운터 */}
       <div style={{ position: 'absolute', [busyX < W / 2 ? 'right' : 'left']: PAD, top: PAD * 0.55, display: 'flex', alignItems: 'baseline', gap: 18, color: `rgb(${ink.join(',')})`, opacity: counterOut * prog(frame, 0, 8) }}>
-        <span style={{ fontSize: Math.round(H * 0.11), fontWeight: 800, letterSpacing: '-0.04em', lineHeight: 1, ...TNUM }}>{shown}</span>
+        <span style={{ fontSize: Math.round(H * (portrait ? 0.06 : 0.11)), fontWeight: 800, letterSpacing: '-0.04em', lineHeight: 1, ...TNUM }}>{shown}</span>
         <span style={{ fontSize: 26, fontWeight: 600, opacity: 0.6 }}>장의 사진 · 날짜와 시각</span>
       </div>
 
@@ -112,6 +114,22 @@ export const DataIntro: React.FC<DataIntroProps> = (p) => {
       </svg>
 
       {/* 타이틀 */}
+      {portrait ? (<>
+        <div style={{ position: 'absolute', left: PAD, top: 64, color: '#fff', fontSize: 30, fontWeight: 600, letterSpacing: '0.02em', opacity: prog(frame, 86, 14), ...TNUM }}>{p.range}</div>
+        <div style={{ position: 'absolute', left: PAD - 6, right: PAD, bottom: H - stripT + Math.round(H * 0.04), color: '#fff', display: 'flex', flexDirection: 'column', gap: 30 }}>
+          <div style={{ display: 'flex', gap: 48, opacity: tp2, transform: `translateY(${(1 - tp2) * 18}px)` }}>
+            {p.stats.map((s, i) => (
+              <div key={i}>
+                <div style={{ fontSize: Math.round(H * 0.045), fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1, ...TNUM }}>{s.n}</div>
+                <div style={{ fontSize: 24, fontWeight: 600, opacity: 0.75, marginTop: 6 }}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ overflow: 'hidden', paddingTop: '0.06em' }}>
+            {tLines.map((l, i) => <div key={i} style={{ fontSize: fs, fontWeight: 900, letterSpacing: '-0.045em', lineHeight: 1.04, transform: `translateY(${(1 - tp) * 108}%)`, whiteSpace: 'nowrap' }}>{l}</div>)}
+          </div>
+        </div>
+      </>) : (<>
       <div style={{ position: 'absolute', left: PAD, top: PAD * 0.7, color: '#fff', fontSize: 28, fontWeight: 600, letterSpacing: '0.02em', opacity: prog(frame, 86, 14), ...TNUM }}>{p.range}</div>
       <div style={{ position: 'absolute', left: PAD - 6, bottom: H - stripT + Math.round(H * 0.045), color: '#fff', overflow: 'hidden', paddingTop: '0.06em' }}>
         <div style={{ fontSize: fs, fontWeight: 900, letterSpacing: '-0.045em', lineHeight: 1.02, transform: `translateY(${(1 - tp) * 108}%)`, whiteSpace: 'nowrap' }}>{p.title}</div>
@@ -124,6 +142,8 @@ export const DataIntro: React.FC<DataIntroProps> = (p) => {
           </div>
         ))}
       </div>
+
+      </>)}
 
       {/* 퇴장 와이프 → 다음 장면(종이색) */}
       <div style={{ position: 'absolute', inset: 0, background: paper, transform: `translateX(${(wipe - 1) * 100}%)` }} />
