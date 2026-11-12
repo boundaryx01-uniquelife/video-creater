@@ -1,4 +1,5 @@
 import type { DataIntroProps } from './introData.ts';
+import { beatFrame, beatGrid, nearestBeat, nextBeat, type AudioSpec } from '../audio/spec.ts';
 
 export type PhotoSpec = { src: string; aspect: number; time: string; date: string; wd: string; hex: string; exif: string; model: string; fy: number; fx: number; cap?: { chip: string; title: string; sub: string }; ts?: number };
 export type ChapterSpec = {
@@ -7,9 +8,11 @@ export type ChapterSpec = {
   onAccent?: string;
   photos: PhotoSpec[]; // photos[0] = 챕터 대표(매치컷), 이후 시간순
   matchCut: boolean;   // 대표가 가로형이면 풀스크린으로 펼쳐지는 매치컷
+  audio?: AudioSpec;   // 있고 syncCuts·bpm이면 컷 전환을 박자 격자에 맞춘다
+  at?: number;         // 이 장면이 영상 전체에서 시작하는 프레임(박자 격자가 영상 시간축 기준이라 필요, 기본 0)
 };
 export type OutroData = { photos: number; days: number; regions: number; chapters: number; hours: number[]; peakHour: number; busiest: string; busiestCount: number; device: string; deviceCount: number; title: string; range: string };
-export type VideoProps = { intro: DataIntroProps; chapters: ChapterSpec[]; outro: OutroData };
+export type VideoProps = { intro: DataIntroProps; chapters: ChapterSpec[]; outro: OutroData; audio?: AudioSpec };
 
 /* ---------- 영상 계획 (프레임) ---------- */
 export const FPS = 30, INTRO = 150, CARD = 84, OUTRO = 150, OV = 10, TAIL = 26, MAX_FLOW = 190;
@@ -24,6 +27,8 @@ export function planFlow(ch: ChapterSpec): { beats: Beat[]; total: number } {
   const spp = Math.round(FPS * (ch.style === 'fast' ? 0.8 : ch.style === 'steady' ? 1.15 : 1.7));
   const enters: Enter[] = ['wipeUp', 'push', 'zoom', 'wipeLeft'];
   const beats: Beat[] = []; let i = 0, cursor = 0; const ph = ch.photos;
+  // 박자 동기화: 컷이 끝나는 시각(영상 전체 기준)을 가장 가까운 박으로 옮긴다. 그래서 첫 컷을 뺀 나머지 컷 길이는 박자의 정수배가 된다
+  const grid = beatGrid(ch.audio, FPS), at = ch.at ?? 0;
   while (i < ph.length && cursor < MAX_FLOW - 20) {
     const p = ph[i], q = ph[i + 1]; let kind: Beat['kind'], n = 1, dur = spp;
     if (!beats.length) { kind = ch.matchCut ? 'full' : 'editorial'; dur = Math.round(spp * 1.25); }
@@ -32,17 +37,23 @@ export function planFlow(ch: ChapterSpec): { beats: Beat[]; total: number } {
     else if (portrait(p)) { kind = 'editorial'; dur = Math.round(spp * 1.4); }
     else kind = 'full';
     dur = Math.max(26, dur);
+    if (grid) { const t0 = at + cursor; let k = nearestBeat(grid, t0 + dur); while (beatFrame(grid, k) - t0 < 26) k++; dur = beatFrame(grid, k) - t0; }
     const enter: Enter = beats.length ? enters[(Math.floor(r() * 4) + beats.length) % enters.length] : 'none';
     beats.push({ kind, photos: ph.slice(i, i + n), from: beats.length ? cursor - OV : 0, len: dur + (beats.length ? OV : 0) + TAIL, dur, enter, seed: Math.floor(r() * 1e6) });
     cursor += dur; i += n;
   }
-  if (beats.length) beats[beats.length - 1].len += 8; // 퇴장 와이프 동안 마지막 컷 유지(검은 화면 방지)
-  return { beats, total: cursor + 8 };
+  // 장면 끝(퇴장 와이프 포함)도 박 위에 놓는다
+  const total = grid ? beatFrame(grid, nextBeat(grid, at + cursor + 8)) - at : cursor + 8;
+  if (beats.length) beats[beats.length - 1].len += total - cursor; // 퇴장 와이프 동안 마지막 컷 유지(검은 화면 방지)
+  return { beats, total };
 }
+
+/** 결산 영상의 i번째 챕터를 사진 플로우 계획용으로(음악·시작 프레임 포함) 만든다 */
+export const flowChapter = (p: VideoProps, i: number, at: number): ChapterSpec => (p.audio ? { ...p.chapters[i], audio: p.audio, at } : p.chapters[i]);
 
 export type Scene = { type: 'intro' | 'card' | 'flow' | 'outro'; from: number; dur: number; ch?: number };
 export function planVideo(p: VideoProps): { scenes: Scene[]; total: number } {
   const scenes: Scene[] = [{ type: 'intro', from: 0, dur: INTRO }]; let f = INTRO;
-  p.chapters.forEach((ch, i) => { scenes.push({ type: 'card', from: f, dur: CARD, ch: i }); f += CARD; const fl = planFlow(ch).total; scenes.push({ type: 'flow', from: f, dur: fl, ch: i }); f += fl; });
+  p.chapters.forEach((ch, i) => { scenes.push({ type: 'card', from: f, dur: CARD, ch: i }); f += CARD; const fl = planFlow(flowChapter(p, i, f)).total; scenes.push({ type: 'flow', from: f, dur: fl, ch: i }); f += fl; });
   scenes.push({ type: 'outro', from: f, dur: OUTRO }); return { scenes, total: f + OUTRO };
 }

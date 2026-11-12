@@ -7,9 +7,9 @@ export const E_INTRO = 135, E_AGENDA = 130, E_CARD = 84, E_QUOTE = 105, E_STATS 
 
 export const hm = (t: string) => { const [h, m] = t.split(':').map(Number); return h + m / 60; };
 
-export function sessionChapter(p: EventProps, s: EventSession, i: number): ChapterSpec {
+export function sessionChapter(p: EventProps, s: EventSession, i: number, at?: number): ChapterSpec {
   const a = p.agenda[s.agenda];
-  return { index: i, total: p.sessions.length, big: a.start, small: s.title, kicker: '', meta: [], accent: p.colors.accent, light: p.colors.light, fromDay: 0, toDay: 0, style: s.style, photos: s.photos, matchCut: s.photos[0].aspect >= 1.2 };
+  return { index: i, total: p.sessions.length, big: a.start, small: s.title, kicker: '', meta: [], accent: p.colors.accent, light: p.colors.light, fromDay: 0, toDay: 0, style: s.style, photos: s.photos, matchCut: s.photos[0].aspect >= 1.2, ...(p.audio ? { audio: p.audio, at } : {}) };
 }
 
 export function introSpec(p: EventProps): ModeSpec {
@@ -32,7 +32,7 @@ export type EScene = { type: 'intro' | 'agenda' | 'card' | 'flow' | 'quote' | 's
 export function planEvent(p: EventProps): { scenes: EScene[]; total: number } {
   const sc: EScene[] = []; let f = 0; const add = (type: EScene['type'], dur: number, i?: number) => { sc.push({ type, from: f, dur, i }); f += dur; };
   add('intro', E_INTRO); add('agenda', E_AGENDA);
-  p.sessions.forEach((s, i) => { add('card', E_CARD, i); add('flow', planFlow(sessionChapter(p, s, i)).total, i); });
+  p.sessions.forEach((s, i) => { add('card', E_CARD, i); add('flow', planFlow(sessionChapter(p, s, i, f)).total, i); });
   add('quote', E_QUOTE); add('stats', E_STATS); add('outro', E_OUTRO);
   return { scenes: sc, total: f };
 }

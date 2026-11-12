@@ -6,9 +6,9 @@ import type { Leg, TravelProps } from './types.ts';
 
 export const T_INTRO = 150, T_CARD = 84, T_OUTRO = 190;
 const fmtMin = (m: number) => { const h = Math.floor(m / 60), mm = Math.round(m % 60); return h ? `${h}시간 ${String(mm).padStart(2, '0')}분` : `${mm}분`; };
-export function stopChapter(p: TravelProps, legs: Leg[], i: number): ChapterSpec {
+export function stopChapter(p: TravelProps, legs: Leg[], i: number, at?: number): ChapterSpec {
   const s = p.stops[legs[i].b];
-  return { index: i, total: legs.length, big: s.name, small: s.sub, kicker: '', meta: [], accent: p.colors.accent, light: p.colors.light, fromDay: 0, toDay: 0, style: 'steady', photos: s.photos, matchCut: s.photos[0].aspect >= 1.2 };
+  return { index: i, total: legs.length, big: s.name, small: s.sub, kicker: '', meta: [], accent: p.colors.accent, light: p.colors.light, fromDay: 0, toDay: 0, style: 'steady', photos: s.photos, matchCut: s.photos[0].aspect >= 1.2, ...(p.audio ? { audio: p.audio, at } : {}) };
 }
 export function stopCardSpec(p: TravelProps, legs: Leg[], i: number): ModeSpec {
   const l = legs[i], s = p.stops[l.b], base = MODES.journey;
@@ -20,6 +20,6 @@ export type TScene = { type: 'intro' | 'leg' | 'card' | 'flow' | 'outro'; from: 
 export function planTravel(p: TravelProps, legs: Leg[]): { scenes: TScene[]; total: number } {
   const sc: TScene[] = []; let f = 0; const add = (type: TScene['type'], dur: number, i?: number) => { sc.push({ type, from: f, dur, i }); f += dur; };
   add('intro', T_INTRO);
-  legs.forEach((l, i) => { add('leg', MODE_DUR[l.mode], i); add('card', T_CARD, i); add('flow', planFlow(stopChapter(p, legs, i)).total, i); });
+  legs.forEach((l, i) => { add('leg', MODE_DUR[l.mode], i); add('card', T_CARD, i); add('flow', planFlow(stopChapter(p, legs, i, f)).total, i); });
   add('outro', T_OUTRO); return { scenes: sc, total: f };
 }
