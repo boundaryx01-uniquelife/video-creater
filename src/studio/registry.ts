@@ -25,7 +25,7 @@ const modeVideo = (id: string, name: string, desc: string, sample: () => any, ch
 
 export const STUDIO_MODES: StudioMode[] = [
   { id: 'event', name: '행사 · 컨퍼런스', desc: '일정표, 연사 자막, 인용문, 숫자 요약', comp: 'event-video-sample', Component: EventVideo, sample: eventSample, plan: (p) => { const r = planEvent(p); return { total: r.total, scenes: marks(r.scenes) }; }, sections: ['info', 'introPhoto', 'colors', 'agenda', 'sessions', 'quote', 'stats', 'statsPhoto', 'outro'], bulk: 'agenda', chip: 'time' },
-  { id: 'travel', name: '여행 · 출장', desc: '지구본, 지형 지도, 이동 경로', comp: 'travel-video-sample', Component: TravelVideo, sample: () => travelBuilt, plan: (p) => { const r = planTravel(p, legsOf(p)); return { total: r.total, scenes: marks(r.scenes) }; }, sections: ['info', 'colors', 'stops'], bulk: 'none', chip: 'time', note: '경로·지형은 미리 계산된 샘플입니다. 정차지 위치를 바꾸려면 터미널에서 npm run build:travel 로 다시 만들어야 합니다. 여기서는 문구와 사진만 바꿀 수 있습니다.' },
+  { id: 'travel', name: '여행 · 출장', desc: '지구본, 지형 지도, 이동 경로', comp: 'travel-video-sample', Component: TravelVideo, sample: () => travelBuilt, plan: (p) => { const r = planTravel(p, legsOf(p)); return { total: r.total, scenes: marks(r.scenes) }; }, sections: ['info', 'colors', 'stops'], bulk: 'none', chip: 'time', note: '지금 보이는 것은 미리 계산된 샘플입니다. 아래 \'사진으로 여행 만들기\'에 GPS·촬영 시각이 있는 사진을 올리면 정차지·경로·지형을 자동으로 만듭니다. 샘플 상태에서는 문구와 사진만 바꿀 수 있습니다.' },
   modeVideo('site', '현장 · 시공', '공정률, Before/After, 점검 결과', siteSample),
   modeVideo('store', '매장 · 공간', '공간별 면적·소재, 오시는 길', storeSample),
   modeVideo('product', '상품 소개', '스펙, 컬러, 가격, 사전예약', productSample),

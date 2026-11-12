@@ -3,21 +3,22 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { execFileSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { geoDistance } from 'd3-geo';
 import type { LL } from '../../src/travel/types.ts';
 import type { BBox } from './ne.ts';
 import { resample } from './routing.ts';
 
-const DIR = path.resolve(process.env.OSM_DIR || 'data/osm'), KM = (a: LL, b: LL) => geoDistance(a, b) * 6371;
+const run = promisify(execFile), DIR = path.resolve(process.env.OSM_DIR || 'data/osm'), KM = (a: LL, b: LL) => geoDistance(a, b) * 6371;
 export type Street = { k: number; c: LL[] }; // k: 0 간선, 1 일반 도로, 2 보행로, 3 철도, 4 물길
 const CLS: Record<string, number> = { motorway: 0, trunk: 0, primary: 0, secondary: 0, motorway_link: 0, trunk_link: 0, primary_link: 0, secondary_link: 0, tertiary: 1, tertiary_link: 1, unclassified: 1, residential: 1, living_street: 1, pedestrian: 2, footway: 2, path: 2, steps: 2, cycleway: 2, track: 2 };
 
-export function fetchStreets(b: BBox): { streets: Street[]; walkable: { c: LL[]; w: number }[] } | null {
+export async function fetchStreets(b: BBox): Promise<{ streets: Street[]; walkable: { c: LL[]; w: number }[] } | null> {
   const bb = `${b[1].toFixed(5)},${b[0].toFixed(5)},${b[3].toFixed(5)},${b[2].toFixed(5)}`;
   const q = `[out:json][timeout:90];(way["highway"~"^(motorway|trunk|primary|secondary|tertiary|unclassified|residential|living_street|pedestrian|footway|path|steps|cycleway|track)(_link)?$"](${bb});way["railway"="rail"](${bb});way["waterway"~"^(river|canal)$"](${bb}););out geom qt;`;
   fs.mkdirSync(DIR, { recursive: true }); const f = path.join(DIR, crypto.createHash('sha1').update(q).digest('hex').slice(0, 16) + '.json');
-  if (!fs.existsSync(f)) { try { execFileSync('curl', ['-sS', '-f', '-m', '120', '--retry', '1', '-o', f, '--data-urlencode', 'data=' + q, 'https://overpass-api.de/api/interpreter'], { stdio: ['ignore', 'ignore', 'pipe'] }); } catch (e: any) { try { fs.unlinkSync(f); } catch { /* 없음 */ } console.warn('OSM 요청 실패:', String(e.stderr ?? e).slice(0, 160)); return null; } }
+  if (!fs.existsSync(f)) { try { await run('curl', ['-sS', '-f', '-m', '120', '--retry', '1', '-o', f, '--data-urlencode', 'data=' + q, 'https://overpass-api.de/api/interpreter']); } catch (e: any) { try { fs.unlinkSync(f); } catch { /* 없음 */ } console.warn('OSM 요청 실패:', String(e.stderr ?? e).slice(0, 160)); return null; } }
   let j: any; try { j = JSON.parse(fs.readFileSync(f, 'utf8')); } catch { fs.unlinkSync(f); return null; }
   const streets: Street[] = [], walkable: { c: LL[]; w: number }[] = [];
   for (const el of j.elements ?? []) { if (el.type !== 'way' || !el.geometry) continue; const c: LL[] = el.geometry.map((g: any) => [+g.lon.toFixed(6), +g.lat.toFixed(6)] as LL), t = el.tags ?? {};

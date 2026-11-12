@@ -6,6 +6,13 @@ import type { LL } from '../../src/travel/types.ts';
 export type BBox = [number, number, number, number]; // lon0, lat0, lon1, lat1
 const DIR = path.resolve(process.env.NE_DIR || 'data/ne');
 const cache = new Map<string, any>();
+/** 여행 빌드에 필요한 Natural Earth 파일 목록(scripts/fetch-data.mjs 의 NE_FILES 와 같다) */
+export const NE_REQUIRED = ['ne_10m_populated_places', 'ne_10m_roads', 'ne_10m_railroads', 'ne_10m_rivers_lake_centerlines', 'ne_10m_lakes', 'ne_10m_urban_areas'];
+/** 지도 데이터가 갖춰졌는지 확인 */
+export function neStatus(): { ready: boolean; missing: string[]; dir: string } {
+  const missing = NE_REQUIRED.filter((n) => { try { return fs.statSync(path.join(DIR, n + '.geojson')).size < 1e6; } catch { return true; } });
+  return { ready: !missing.length, missing, dir: DIR };
+}
 export const load = (name: string) => { if (!cache.has(name)) cache.set(name, JSON.parse(fs.readFileSync(path.join(DIR, name + '.geojson'), 'utf8'))); return cache.get(name); };
 const inBox = (c: number[], b: BBox) => c[0] >= b[0] && c[0] <= b[2] && c[1] >= b[1] && c[1] <= b[3];
 export const expand = (b: BBox, m: number): BBox => [b[0] - m, b[1] - m, b[2] + m, b[3] + m];

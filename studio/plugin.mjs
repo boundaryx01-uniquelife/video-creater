@@ -3,6 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { travelApi, studioAssetUrls } from './travel-api.mjs';
 
 const TYPES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
 const AUDIO_TYPES = { 'audio/mpeg': 'mp3', 'audio/mp3': 'mp3', 'audio/wav': 'wav', 'audio/x-wav': 'wav', 'audio/wave': 'wav', 'audio/vnd.wave': 'wav', 'audio/mp4': 'm4a', 'audio/x-m4a': 'm4a', 'audio/aac': 'm4a', 'audio/ogg': 'ogg', 'application/ogg': 'ogg' };
@@ -32,7 +33,7 @@ export function studio() {
       bundling ??= bundle({ entryPoint: path.join(root, 'src/remotion/index.ts'), publicDir: path.join(root, 'public') });
       const serveUrl = await bundling, browserExecutable = process.env.CHROME_BIN || undefined;
       // 업로드 사진은 번들에 없으므로 이 서버의 주소로 바꿔서 렌더러가 받아 가게 한다
-      const inputProps = JSON.parse(JSON.stringify(job.props).replaceAll('"/uploads/', `"http://127.0.0.1:${port}/uploads/`));
+      const inputProps = JSON.parse(studioAssetUrls(JSON.stringify(job.props).replaceAll('"/uploads/', `"http://127.0.0.1:${port}/uploads/`), port));
       const composition = await selectComposition({ serveUrl, id: job.comp, inputProps, browserExecutable });
       const last = composition.durationInFrames - 1, end = job.seconds ? Math.min(last, Math.round(job.seconds * composition.fps) - 1) : last;
       job.stage = '렌더링'; job.frames = end + 1;
@@ -47,6 +48,7 @@ export function studio() {
     name: 'studio-api',
     configureServer(server) {
       fs.mkdirSync(up, { recursive: true }); fs.mkdirSync(out, { recursive: true });
+      travelApi(server, { root, send, body }); // 여행 모드 API (studio/travel-api.mjs)
       server.middlewares.use(async (req, res, next) => {
         const url = new URL(req.url, 'http://local'), p = url.pathname;
         try {

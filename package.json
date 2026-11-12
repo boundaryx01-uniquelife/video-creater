@@ -9,6 +9,7 @@
     "render:still": "node scripts/render.mjs still",
     "render:intro": "node scripts/render.mjs video",
     "build:travel": "esbuild scripts/build-travel.ts --bundle --platform=node --format=esm --external:sharp --outfile=.cache/build-travel.mjs --log-level=error && node .cache/build-travel.mjs",
+    "fetch:data": "node scripts/fetch-data.mjs",
     "build:ingest": "node tools/build-ingest.mjs"
   },
   "dependencies": {

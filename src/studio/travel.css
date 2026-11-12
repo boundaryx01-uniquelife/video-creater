@@ -1,0 +1,31 @@
+/* 여행 모드 패널(TravelPanel) 전용 스타일 */
+.travelp { margin-bottom: 8px; }
+.travelp .inl { display: inline-flex; align-items: center; gap: 6px; margin: 0; }
+.travelp .pre { margin-top: 8px; font-size: 13px; background: #0b0c0f; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+.travelp .bad { color: #e9c98a; }
+.travelp .steps { margin-top: 10px; }
+.travelp .steps ol { display: flex; flex-wrap: wrap; gap: 4px 12px; list-style: none; padding: 0; margin: 8px 0 0; font-size: 12px; color: var(--mut); }
+.travelp .steps li.on { color: var(--acc); font-weight: 700; }
+.travelp .steps li.done { color: var(--fg); }
+.travelp .steps li.done::before { content: '✓ '; }
+.travelp .note.err { color: #ff8f8f; }
+.travelp .flog { font-size: 11px; background: #0b0c0f; border-radius: 6px; padding: 6px 8px; margin: 8px 0 0; white-space: pre-wrap; color: var(--mut); }
+.travelp .sumline { font-size: 12px; color: var(--mut); margin: 6px 0; }
+.travelp .wn { font-size: 12px; border-left: 3px solid var(--line); padding: 3px 8px; margin: 4px 0; color: var(--mut); }
+.travelp .wn.warn { border-color: #e9c98a; color: #e9c98a; }
+.travelp .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.travelp .stopc { border: 1px solid var(--line); border-radius: 10px; background: var(--panel2); padding: 8px 10px 10px; margin: 4px 0; }
+.travelp .stopc .sh { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.travelp .stopc .sh b { background: var(--acc); color: #17120a; border-radius: 99px; min-width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; }
+.travelp .stopc .sh button { padding: 3px 8px; font-size: 12px; }
+.travelp .grow { flex: 1; }
+.travelp .leg { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; padding: 2px 6px; }
+.travelp .leg .arrow { color: var(--mut); padding-bottom: 8px; }
+.travelp .leg label { margin: 0; width: 170px; }
+.travelp .leg .hint { padding-bottom: 8px; }
+.travelp .cthumbs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.travelp .cthumbs button { padding: 0; width: 74px; height: 52px; border-radius: 6px; overflow: hidden; position: relative; border: 2px solid transparent; background: #000; opacity: .45; }
+.travelp .cthumbs button.on { opacity: 1; border-color: var(--acc); }
+.travelp .cthumbs img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.travelp .cthumbs em { position: absolute; left: 3px; top: 3px; font-style: normal; font-size: 10px; background: var(--acc); color: #17120a; padding: 0 5px; border-radius: 4px; font-weight: 700; }
+.travelp .cthumbs i { position: absolute; right: 3px; bottom: 2px; font-style: normal; font-size: 10px; background: rgba(0,0,0,.65); padding: 0 4px; border-radius: 4px; }

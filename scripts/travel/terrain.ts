@@ -7,6 +7,9 @@ import sharp from 'sharp';
 import type { Texture } from '../../src/travel/types.ts';
 import type { BBox } from './ne.ts';
 
+/** 마지막 makeTexture 호출에서 필요했던 타일 수와 실제로 받은 타일 수(일부만 받으면 텍스처에 빈 곳이 생긴다) */
+export const terrainStats = { need: 0, got: 0 };
+const TILE_URL = process.env.TERRAIN_URL || 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium';
 const run = promisify(execFile), TILE_DIR = path.resolve(process.env.TILE_DIR || 'data/tiles'), RAD = Math.PI / 180;
 const lon2x = (lon: number, z: number) => ((lon + 180) / 360) * 2 ** z;
 const lat2y = (lat: number, z: number) => ((1 - Math.log(Math.tan(lat * RAD) + 1 / Math.cos(lat * RAD)) / Math.PI) / 2) * 2 ** z;
@@ -15,7 +18,7 @@ async function tile(z: number, x: number, y: number): Promise<Buffer | null> {
   const n = 2 ** z, xx = ((x % n) + n) % n; if (y < 0 || y >= n) return null;
   const f = path.join(TILE_DIR, String(z), String(xx), `${y}.png`);
   if (!fs.existsSync(f)) { fs.mkdirSync(path.dirname(f), { recursive: true });
-    try { await run('curl', ['-sS', '-f', '-m', '40', '--retry', '2', '-o', f, `https://s3.amazonaws.com/elevation-tiles-prod/terrarium/${z}/${xx}/${y}.png`]); } catch { try { fs.unlinkSync(f); } catch { /* 없음 */ } return null; } }
+    try { await run('curl', ['-sS', '-f', '-m', '40', '--retry', '2', '-o', f, `${TILE_URL}/${z}/${xx}/${y}.png`]); } catch { try { fs.unlinkSync(f); } catch { /* 없음 */ } return null; } }
   return (await sharp(f).removeAlpha().raw().toBuffer());
 }
 const hex = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
@@ -27,11 +30,13 @@ export async function makeTexture(box: BBox, targetPx: number, outFile: string, 
   const [lon0, lat0, lon1, lat1] = [box[0], Math.max(-84, box[1]), box[2], Math.min(84, box[3])], span = lon1 - lon0;
   const z = Math.max(0, Math.min(14, Math.ceil(Math.log2((targetPx * 360) / (256 * span)))));
   const x0 = Math.floor(lon2x(lon0, z)), x1 = Math.floor(lon2x(lon1, z)), y0 = Math.floor(lat2y(lat1, z)), y1 = Math.floor(lat2y(lat0, z)), nx = x1 - x0 + 1, ny = y1 - y0 + 1;
+  terrainStats.need = nx * ny; terrainStats.got = 0;
   if (nx * ny > 220) return null;
   const MW = nx * 256, MH = ny * 256, el = new Float32Array(MW * MH); let got = 0;
   const jobs: [number, number][] = []; for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++) jobs.push([tx, ty]);
   await Promise.all(Array.from({ length: 8 }, async () => { for (;;) { const j = jobs.pop(); if (!j) return; const b = await tile(z, j[0], j[1]); if (!b) continue; got++;
     const ox = (j[0] - x0) * 256, oy = (j[1] - y0) * 256; for (let y = 0; y < 256; y++) for (let x = 0; x < 256; x++) { const i = (y * 256 + x) * 3; el[(oy + y) * MW + ox + x] = b[i] * 256 + b[i + 1] + b[i + 2] / 256 - 32768; } } }));
+  terrainStats.got = got;
   if (!got) return null;
   const W = Math.round(Math.min(targetPx, span / 360 * 2 ** z * 256)), H = Math.max(2, Math.round(W * (lat1 - lat0) / span)), dlon = span / W, dlat = (lat1 - lat0) / H;
   const grid = new Float32Array(W * H);
