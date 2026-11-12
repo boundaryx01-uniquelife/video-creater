@@ -1,5 +1,7 @@
 import exifr from 'exifr';
 import type { PhotoSpec } from '../analysis/videoData.ts';
+import { ImportError, decodeImage } from './image.ts';
+import { uploadBlob } from './uploads.ts';
 
 export type Path = (string | number)[];
 export const setIn = (o: any, path: Path, v: any): any => { if (!path.length) return v; const [h, ...r] = path, c: any = Array.isArray(o) ? [...o] : { ...o }; c[h] = setIn(o?.[h], r, v); return c; };
@@ -8,23 +10,30 @@ export const urlOf = (src: string) => (/^(data:|blob:|https?:|\/)/.test(src) ? s
 const z2 = (n: number) => String(n).padStart(2, '0'), WD = ['일', '월', '화', '수', '목', '금', '토'];
 
 /** 사진 1장 가져오기: EXIF 촬영 시각을 읽고, 긴 변 2560px로 줄여 로컬 서버에 저장(EXIF는 제거됨). 서버가 없으면 미리보기 전용 주소를 쓴다 */
-export async function importPhoto(file: File, chip: 'time' | 'date' | 'none'): Promise<PhotoSpec> {
+export async function importPhoto(file: File, chip: 'time' | 'date' | 'none', info?: { warning?: string }): Promise<PhotoSpec> {
+  const { bmp, warning } = await decodeImage(file); if (warning && info) info.warning = warning; // 형식·손상 검사 포함, HEIC는 여기서 변환
   let when: Date | null = null;
   try { const ex = await exifr.parse(file, { pick: ['DateTimeOriginal', 'CreateDate'] } as any); const d = ex?.DateTimeOriginal ?? ex?.CreateDate; if (d instanceof Date && !isNaN(+d)) when = d; } catch { /* EXIF 없음 */ }
-  const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' } as ImageBitmapOptions);
   const k = Math.min(1, 2560 / Math.max(bmp.width, bmp.height)), c = document.createElement('canvas'); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
   c.getContext('2d')!.drawImage(bmp, 0, 0, c.width, c.height); const aspect = +(c.width / c.height).toFixed(3); bmp.close();
-  const blob: Blob = await new Promise((r) => c.toBlob((b) => r(b!), 'image/jpeg', 0.9));
-  let src: string;
-  try { const res = await fetch('/api/upload', { method: 'POST', headers: { 'content-type': 'image/jpeg' }, body: blob }); if (!res.ok) throw new Error(); src = (await res.json()).src; } catch { src = URL.createObjectURL(blob); }
+  const blob: Blob = await new Promise((r, no) => c.toBlob((b) => (b ? r(b) : no(new ImportError('사진을 JPEG로 변환하지 못했습니다.'))), 'image/jpeg', 0.9));
+  const src = (await uploadBlob(blob)) ?? URL.createObjectURL(blob); // 서버 저장 실패 시 미리보기 전용 주소
   const time = when ? `${z2(when.getHours())}:${z2(when.getMinutes())}` : '', date = when ? `${when.getFullYear()}.${z2(when.getMonth() + 1)}.${z2(when.getDate())}` : '';
   return { src, aspect, time, date, wd: when ? WD[when.getDay()] : '', hex: '#888888', exif: '', model: '', fy: aspect < 0.9 ? 0.36 : 0.45, fx: 0.5, cap: { chip: chip === 'time' ? time : chip === 'date' ? date : '', title: '', sub: '' }, ts: when ? +when : undefined };
 }
-export async function importPhotos(files: File[], chip: 'time' | 'date' | 'none', onStep?: (done: number, total: number) => void): Promise<{ photos: PhotoSpec[]; failed: string[] }> {
-  const photos: PhotoSpec[] = [], failed: string[] = []; let n = 0;
-  for (const f of files) { try { photos.push(await importPhoto(f, chip)); } catch { failed.push(f.name); } onStep?.(++n, files.length); }
-  return { photos, failed };
+export type ImportResult = { photos: PhotoSpec[]; failed: string[]; errors: { name: string; reason: string }[]; warnings: string[] };
+export async function importPhotos(files: File[], chip: 'time' | 'date' | 'none', onStep?: (done: number, total: number) => void): Promise<ImportResult> {
+  const photos: PhotoSpec[] = [], failed: string[] = [], errors: ImportResult['errors'] = [], warnings: string[] = []; let n = 0;
+  for (const f of files) {
+    const info: { warning?: string } = {};
+    try { photos.push(await importPhoto(f, chip, info)); if (info.warning) warnings.push(`${f.name}: ${info.warning}`); }
+    catch (e) { failed.push(f.name); errors.push({ name: f.name, reason: e instanceof ImportError ? e.message : '읽을 수 없는 파일입니다.' }); }
+    onStep?.(++n, files.length);
+  }
+  return { photos, failed, errors, warnings };
 }
+/** 가져오기 결과를 한 줄 안내문으로 */
+export const importSummary = (r: ImportResult) => [r.errors.length ? `읽지 못한 파일 ${r.errors.length}개: ${r.errors.slice(0, 3).map((x) => `${x.name}(${x.reason})`).join(' / ')}${r.errors.length > 3 ? ' …' : ''}` : '', ...r.warnings.slice(0, 2)].filter(Boolean).join(' · ');
 export const byTime = (a: PhotoSpec, b: PhotoSpec) => (a.ts ?? Infinity) - (b.ts ?? Infinity);
 const hm = (s: string) => { const [h, m] = s.split(':').map(Number); return h * 60 + (m || 0); };
 
