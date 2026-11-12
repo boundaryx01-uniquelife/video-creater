@@ -330,7 +330,8 @@ const groups = {
     const { ctx, p } = await fresh(b), G = 'full'; const MODE = process.env.FULL_MODE ?? '현장';
     await goMode(p, MODE); const total = parseFloat((await p.locator('.scenes span').innerText()).replace('초', ''));
     await p.locator('.render select').first().selectOption('0'); const btn = p.getByRole('button', { name: /전체 길이 MP4 만들기/ }); check(G, '범위를 "전체 길이"로 바꾸면 버튼 이름도 바뀜', await btn.isVisible());
-    await btn.click(); const row = p.locator('.job-row').first(); const t0 = Date.now(); let n = 0;
+    const before = await p.locator('.job-row').count(); await btn.click(); { const tt = Date.now(); while (Date.now() - tt < 15000 && (await p.locator('.job-row').count()) <= before) await sleep(300); }
+    const row = p.locator('.job-row').first(); const t0 = Date.now(); let n = 0;
     while (Date.now() - t0 < 20 * 60e3) { const st = await row.getAttribute('data-status'); if (st === 'done' || st === 'error') break; if (++n % 15 === 0) console.log('  ..', (await row.innerText()).replace(/\n/g, ' ').slice(0, 110)); await sleep(2000); }
     const st = await row.getAttribute('data-status'); check(G, `전체 길이(${total}초) 렌더 완료 (${((Date.now() - t0) / 1000).toFixed(0)}초 소요)`, st === 'done', (await row.innerText()).replace(/\n/g, ' ').slice(0, 160));
     if (st === 'done') { const [dl] = await Promise.all([p.waitForEvent('download'), row.locator('a.dl').click()]); const f = path.join(OUT, 'full-length.mp4'); await dl.saveAs(f);
