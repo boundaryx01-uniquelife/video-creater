@@ -3,6 +3,8 @@ import { Player, PlayerRef } from '@remotion/player';
 import { STUDIO_MODES } from './registry.ts';
 import { Field } from './Editor';
 import { labelOf } from './labels.ts';
+import { MusicPanel, useAudioLicense } from './MusicPanel';
+import type { AudioSpec } from '../audio/spec.ts';
 import { Path, assignByAgenda, assignEvenly, importPhotos, setIn } from './util.ts';
 
 const KEY = (id: string) => `studio:v1:${id}`;
@@ -22,6 +24,7 @@ export const StudioApp: React.FC = () => {
   const [props, setProps] = useState<any>(() => load(mode.id, mode.sample));
   const [busy, setBusy] = useState(''), [note, setNote] = useState(''), [job, setJob] = useState<Job | null>(null), [server, setServer] = useState<boolean | null>(null);
   const [scale, setScale] = useState('720'), [seconds, setSeconds] = useState('8');
+  const [licensed, setLicensed] = useAudioLicense(props.audio?.src);
   const player = useRef<PlayerRef>(null), bulkRef = useRef<HTMLInputElement>(null), importRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { fetch('/api/health').then((r) => setServer(r.ok)).catch(() => setServer(false)); }, []);
@@ -46,12 +49,14 @@ export const StudioApp: React.FC = () => {
   const render = async () => {
     setJob({ id: '', status: 'running', stage: '요청 중', progress: 0 });
     try {
-      const r = await fetch('/api/render', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ comp: mode.comp, props, scale, seconds: Number(seconds) }) }), j = await r.json();
+      const r = await fetch('/api/render', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ comp: mode.comp, props, scale, seconds: Number(seconds), audioLicensed: licensed }) }), j = await r.json();
       if (!r.ok) throw new Error(j.error); const id = j.id as string;
       for (;;) { await new Promise((ok) => setTimeout(ok, 1200)); const s: Job = await (await fetch(`/api/render/${id}`)).json(); setJob(s); if (s.status !== 'running') break; }
     } catch (e) { setJob({ id: '', status: 'error', stage: '', progress: 0, error: String((e as Error).message) }); }
   };
   const hasBlob = JSON.stringify(props).includes('"blob:');
+  const needLicense = !!props.audio && !licensed;
+  const setAudio = (a?: AudioSpec) => setProps((p: any) => { const { audio: _old, ...rest } = p; return a ? { ...rest, audio: a } : rest; });
 
   return (
     <div className="studio">
@@ -71,6 +76,7 @@ export const StudioApp: React.FC = () => {
           </div>
           {(busy || note) && <div className="note">{busy || note}</div>}
           {mode.note && <div className="note warn">{mode.note}</div>}
+          <MusicPanel audio={props.audio} onChange={setAudio} busy={setBusy} licensed={licensed} setLicensed={setLicensed} />
           {mode.sections.filter((k) => props[k] !== undefined).map((k, i) => (
             <details className="sec" key={mode.id + k} open={i === 0}><summary>{labelOf(k)}</summary><div className="body">{props[k] && typeof props[k] === 'object' && !Array.isArray(props[k]) ? Object.entries(props[k]).map(([kk, x]) => <Field key={kk} k={kk} v={x} path={[k, kk]} ctx={ctx} depth={1} />) : <Field k={k} v={props[k]} path={[k]} ctx={ctx} />}</div></details>
           ))}
@@ -86,9 +92,10 @@ export const StudioApp: React.FC = () => {
           <div className="render">
             <label>범위<select value={seconds} onChange={(e) => setSeconds(e.target.value)}><option value="8">처음 8초 (빠른 확인)</option><option value="0">전체</option></select></label>
             <label>화질<select value={scale} onChange={(e) => setScale(e.target.value)}><option value="720">720p</option><option value="1080">1080p</option></select></label>
-            <button className="primary" onClick={render} disabled={!server || job?.status === 'running' || !!plan.err}>MP4 만들기</button>
+            <button className="primary" onClick={render} disabled={!server || job?.status === 'running' || !!plan.err || needLicense} title={needLicense ? '음원 사용 권한을 확인해야 합니다' : undefined}>MP4 만들기</button>
+            {needLicense && <span className="hint" data-testid="lic-hint">음악이 있어 MP4는 "상업적 이용 권한이 있는 음원입니다"를 체크해야 만들 수 있습니다. 미리보기는 가능합니다.</span>}
             {server === false && <span className="hint">렌더 서버가 없습니다. <code>npm run dev</code>로 실행한 화면에서만 MP4를 만들 수 있습니다.</span>}
-            {hasBlob && <span className="hint">서버에 저장되지 않은 사진이 있어 MP4에는 나오지 않습니다.</span>}
+            {hasBlob && <span className="hint">서버에 저장되지 않은 사진·음원이 있어 MP4에는 나오지 않습니다.</span>}
             {job && <div className="job">
               {job.status === 'running' && <><div className="bar"><i style={{ width: `${Math.round(job.progress * 100)}%` }} /></div><span>{job.stage} {Math.round(job.progress * 100)}%</span></>}
               {job.status === 'done' && <a href={`${job.url}?name=${mode.id}-video.mp4`}>완성된 MP4 내려받기</a>}

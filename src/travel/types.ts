@@ -1,4 +1,5 @@
 import type { PhotoSpec } from '../analysis/videoData.ts';
+import type { AudioSpec } from '../audio/spec.ts';
 
 export type LL = [number, number];
 export type Mode = 'plane' | 'train' | 'car' | 'walk' | 'ship' | 'bike';
@@ -14,4 +15,5 @@ export type TravelProps = {
   colors: { accent: string; light: string; ink: string; ocean: string; land: string };
   stops: Stop[]; modeOverride?: Record<number, Mode>;
   legs?: Omit<Leg, 'cum'>[]; assets?: { geo?: string; terrain?: Texture[] };
+  audio?: AudioSpec;
 };

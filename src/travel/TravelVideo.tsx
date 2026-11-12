@@ -7,15 +7,17 @@ import { planTravel, stopCardSpec, stopChapter, T_CARD } from './plan.ts';
 import { TravelIntro, TravelLeg, TravelOutro } from './TravelScenes';
 import { ModeCard } from '../modes/ModeScenes';
 import { FlowScene } from '../intros/FlowScene';
+import { BgAudio } from '../audio/BgAudio';
 
 /** 여행 영상: 지구본 인트로 → (이동 구간 지도 → 도착 카드 → 사진 플로우) × N → 요약 아웃트로 */
 export const TravelVideo: React.FC<TravelProps> = (p) => {
   const legs = React.useMemo(() => legsOf(p), [p]);
   const assets = useTravelAssets(p);
   const { scenes } = React.useMemo(() => planTravel(p, legs), [p, legs]);
-  if (!assets) return <AbsoluteFill style={{ background: '#08161c' }} />;
+  if (!assets) return <AbsoluteFill style={{ background: '#08161c' }}><BgAudio audio={p.audio} /></AbsoluteFill>;
   return (
     <AbsoluteFill style={{ background: '#000' }}>
+      <BgAudio audio={p.audio} />
       {scenes.map((s, k) => {
         const i = s.i ?? 0;
         return (
@@ -23,7 +25,7 @@ export const TravelVideo: React.FC<TravelProps> = (p) => {
             {s.type === 'intro' && <TravelIntro p={p} legs={legs} assets={assets} />}
             {s.type === 'leg' && <TravelLeg p={p} legs={legs} assets={assets} i={i} dur={s.dur} />}
             {s.type === 'card' && <ModeCard mode="journey" spec={stopCardSpec(p, legs, i)} photos={{ card: p.stops[legs[i].b].photos[0].src }} matchCut={p.stops[legs[i].b].photos[0].aspect >= 1.2} dur={T_CARD} />}
-            {s.type === 'flow' && <FlowScene ch={stopChapter(p, legs, i)} wipe="#08161c" bug="TRAVEL LOG" />}
+            {s.type === 'flow' && <FlowScene ch={stopChapter(p, legs, i, s.from)} wipe="#08161c" bug="TRAVEL LOG" />}
             {s.type === 'outro' && <TravelOutro p={p} legs={legs} assets={assets} />}
           </Sequence>
         );

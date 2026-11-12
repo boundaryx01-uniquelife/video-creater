@@ -75,3 +75,9 @@ label.check { display: flex; align-items: center; gap: 8px; }
 .err { color: #ff8f8f; }
 code { background: #0b0c0f; padding: 1px 6px; border-radius: 5px; }
 @media (max-width: 900px) { .cols { grid-template-columns: 1fr; } .form { border-right: 0; max-height: 50vh; } }
+
+.music .btns small { margin-left: 6px; }
+.music input[type=range] { width: 100%; padding: 0; accent-color: var(--acc); }
+.music3 { grid-template-columns: repeat(3, 1fr); }
+.music2 { grid-template-columns: 1fr 1fr auto; align-items: end; }
+.music .lic { margin-top: 12px; color: var(--fg); }
