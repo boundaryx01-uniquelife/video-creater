@@ -12,7 +12,8 @@ jobs:
       matrix:
         include:
           - { os: windows-latest, name: windows }
-          - { os: macos-latest, name: macos-arm64 }
+          - { os: macos-latest, name: macos-arm64 }      # Apple Silicon
+          - { os: macos-15-intel, name: macos-x64 }      # Intel Mac
           - { os: ubuntu-latest, name: linux }
     runs-on: ${{ matrix.os }}
     steps:
@@ -26,11 +27,11 @@ jobs:
         env:
           # 서명 정보는 저장소 Secrets/Variables 에 넣는다(docs/signing.md). 비어 있으면 서명 없이 빌드된다.
           # 빈 문자열로 환경 변수를 만들면 electron-builder 가 "정의됨"으로 보고 실패하므로, 값이 있는 것만 GITHUB_ENV 로 넘긴다
-          CSC_LINK: ${{ matrix.name == 'macos-arm64' && secrets.MAC_CSC_LINK || '' }}
-          CSC_KEY_PASSWORD: ${{ matrix.name == 'macos-arm64' && secrets.MAC_CSC_KEY_PASSWORD || '' }}
-          APPLE_ID: ${{ matrix.name == 'macos-arm64' && secrets.APPLE_ID || '' }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ matrix.name == 'macos-arm64' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
-          APPLE_TEAM_ID: ${{ matrix.name == 'macos-arm64' && secrets.APPLE_TEAM_ID || '' }}
+          CSC_LINK: ${{ startsWith(matrix.name, 'macos') && secrets.MAC_CSC_LINK || '' }}
+          CSC_KEY_PASSWORD: ${{ startsWith(matrix.name, 'macos') && secrets.MAC_CSC_KEY_PASSWORD || '' }}
+          APPLE_ID: ${{ startsWith(matrix.name, 'macos') && secrets.APPLE_ID || '' }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ startsWith(matrix.name, 'macos') && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ startsWith(matrix.name, 'macos') && secrets.APPLE_TEAM_ID || '' }}
           WIN_CERT_B64: ${{ matrix.name == 'windows' && secrets.WIN_CERT_BASE64 || '' }}
           WIN_CSC_KEY_PASSWORD: ${{ matrix.name == 'windows' && secrets.WIN_CSC_KEY_PASSWORD || '' }}
           AZURE_TENANT_ID: ${{ matrix.name == 'windows' && secrets.AZURE_TENANT_ID || '' }}
