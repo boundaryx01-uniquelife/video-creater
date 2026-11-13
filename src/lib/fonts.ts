@@ -16,3 +16,4 @@ import '@fontsource/pretendard/400.css';
 import '@fontsource/pretendard/600.css';
 import '@fontsource/pretendard/800.css';
 import '@fontsource/pretendard/900.css';
+import '@fontsource/jua/400.css'; // 초등 영상의 둥근 제목 글꼴(OFL)

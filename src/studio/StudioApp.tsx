@@ -7,7 +7,7 @@ import { GradAuto } from './GradAuto';
 import { MusicPanel, useAudioLicense } from './MusicPanel';
 import type { AudioSpec } from '../audio/spec.ts';
 import { TravelPanel } from './TravelPanel';
-import { Path, assignByAgenda, assignEvenly, importPhotos, importSummary, setIn } from './util.ts';
+import { Path, assignByGaps, assignByAgenda, assignEvenly, importPhotos, importSummary, setIn } from './util.ts';
 import { useHistory, useUndoKeys } from './history.ts';
 import { ACCEPT } from './image.ts';
 import { SaveResult, loadProps, saveProps } from './storage.ts';
@@ -15,6 +15,7 @@ import { RenderPanel, UnsavedBar } from './RenderPanel';
 import { useFileDrop } from './dnd.ts';
 import './polish.css';
 import { Aspect, SIZES } from '../lib/layout';
+import { ElemAssist } from './ElemAssist';
 
 
 class Boundary extends React.Component<{ k: string; children: React.ReactNode }, { err: string | null }> {
@@ -25,7 +26,7 @@ class Boundary extends React.Component<{ k: string; children: React.ReactNode },
 }
 
 export const StudioApp: React.FC = () => {
-  const [modeId, setModeId] = useState(() => localStorage.getItem('studio:mode') ?? 'event');
+  const [modeId, setModeId] = useState(() => localStorage.getItem('studio:mode') ?? 'elem');
   const mode = STUDIO_MODES.find((m) => m.id === modeId) ?? STUDIO_MODES[0];
   const deadNote = useRef('');
   const H = useHistory<any>(mode.id, (id) => { const m = STUDIO_MODES.find((x) => x.id === id) ?? STUDIO_MODES[0], r = loadProps(id, m.sample); if (r.dead) deadNote.current = `이전에 서버에 저장되지 않은 사진 ${r.dead}장은 샘플 사진으로 바꿨습니다.`; return r.props; });
@@ -55,7 +56,7 @@ export const StudioApp: React.FC = () => {
   const bulk = async (files: File[]) => {
     if (!files.length) return; setBusy(`사진 처리 중… 0/${files.length}`); const r = await importPhotos(files, mode.chip, (d, t) => setBusy(`사진 처리 중… ${d}/${t}`)); setBusy('');
     if (!r.photos.length) { setNote(importSummary(r) || '가져온 사진이 없습니다.'); return; }
-    const res = mode.bulk === 'agenda' ? assignByAgenda(props, r.photos) : assignEvenly(props, r.photos); setProps(res.props);
+    const res = mode.bulk === 'agenda' ? assignByAgenda(props, r.photos) : mode.bulk === 'gaps' ? assignByGaps(props, r.photos) : assignEvenly(props, r.photos); setProps(res.props);
     setNote([res.msg, importSummary(r)].filter(Boolean).join(' · '));
   };
   const exportJson = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(props, null, 1)], { type: 'application/json' })); a.download = `${mode.id}-props.json`; a.click(); };
@@ -85,6 +86,7 @@ export const StudioApp: React.FC = () => {
           {stored !== 'ok' && <div className="note warn" role="alert">{STORE_MSG[stored]}</div>}
           <UnsavedBar props={props} server={server} onFixed={setProps} />
           {mode.note && <div className="note warn">{mode.note}</div>}
+          {mode.id === 'elem' && <ElemAssist props={props} setProps={setProps} setNote={setNote} />}
           {mode.id === 'grad' && <GradAuto props={props} setProps={setProps} setNote={setNote} />}
           <MusicPanel audio={props.audio} onChange={setAudio} busy={setBusy} licensed={licensed} setLicensed={setLicensed} />
           {mode.id === 'travel' && <TravelPanel props={props} setProps={setProps} server={server} />}

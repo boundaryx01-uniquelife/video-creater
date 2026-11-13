@@ -22,6 +22,9 @@ import { planTravel } from '../travel/plan.ts';
 import { legsOf } from '../travel/geo.ts';
 import { ModeVideo } from '../modes/ModeVideo';
 import { planMode } from '../modes/video.ts';
+import { ElemVideo } from '../elem/ElemVideo';
+import { elemSample } from '../elem/sample.ts';
+import { planElem } from '../elem/types.ts';
 import { siteSample, storeSample, productSample, schoolSample, clubSample, gradSample } from '../modes/samples.ts';
 import { SIZES } from '../lib/layout';
 
@@ -59,6 +62,7 @@ export const Root: React.FC = () => (
     {([['site', siteSample], ['store', storeSample], ['product', productSample], ['school', schoolSample], ['club', clubSample], ['grad', gradSample]] as const).map(([id, f]) => (
       <Both key={id} id={`${id}-video-sample`} component={ModeVideo} durationInFrames={1} defaultProps={f() as any} calculateMetadata={({ props }) => ({ durationInFrames: planMode(props).total })} />
     ))}
+    <Both id="elem-video-sample" component={ElemVideo} durationInFrames={1} defaultProps={elemSample() as any} calculateMetadata={({ props }) => ({ durationInFrames: planElem(props).total })} />
     <Both id="recap-intro" component={DataIntro} durationInFrames={150} defaultProps={RECAP.intro as any} />
     <Both id="recap-card" component={RecapCard} durationInFrames={84} />
     <Both id="recap-beat" component={RecapBeat} durationInFrames={120} />

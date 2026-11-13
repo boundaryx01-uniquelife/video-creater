@@ -52,7 +52,7 @@ export function fillSamples(props: any, photos: PhotoSpec[]): { props: any; fill
     let p = order[k % order.length]; k++; if (order.length > 1 && p.src === last) { p = order[k % order.length]; k++; } last = p.src; return p; };
   const walk = (v: any, key = ''): any => {
     if (Array.isArray(v)) {
-      if ((key === 'photos' || key === 'beatPhotos') && v.some((x) => isSampleSrc(x) || (x && isSampleSrc(x.src)))) // 사진 칸: 문자열 주소 또는 PhotoSpec
+      if ((key === 'photos' || key === 'beatPhotos' || key === 'introPhotos') && v.some((x) => isSampleSrc(x) || (x && isSampleSrc(x.src)))) // 사진 칸: 문자열 주소 또는 PhotoSpec
         return v.map((x) => (isSampleSrc(x) ? (filled++, next().src) : x && isSampleSrc(x.src) ? (filled++, ((r) => ({ ...r, cap: x.cap ?? r.cap }))(next())) : x));
       return v.map((x) => walk(x, key));
     }
@@ -77,8 +77,36 @@ export function assignByAgenda(props: any, photos: PhotoSpec[]): { props: any; m
 /** 그 외: 촬영 시각순으로 정렬해 챕터에 순서대로 고르게 나눈다 */
 export function assignEvenly(props: any, photos: PhotoSpec[]): { props: any; msg: string } {
   const sorted = [...photos].sort(byTime), n = props.chapters.length, per = Math.ceil(sorted.length / n);
-  const chapters = props.chapters.map((c: any, i: number) => { const part = sorted.slice(i * per, (i + 1) * per); return part.length ? { ...c, photos: withTitle(part, c.card.big, c.card.small) } : c; });
+  const chapters = props.chapters.map((c: any, i: number) => { const part = sorted.slice(i * per, (i + 1) * per); return part.length ? { ...c, photos: withTitle(part, c.card?.big ?? c.title ?? '', c.card?.small ?? c.sub ?? '') } : c; });
   return finishAssign({ props: { ...props, chapters }, msg: `${sorted.length}장을 촬영 시각순으로 ${n}개 챕터에 나눔 (챕터당 최대 ${per}장)` }, photos);
+}
+
+/**
+ * 초등 활동 영상: 촬영 시각이 20분 이상 비는 곳을 경계로 활동(챕터)을 자동으로 나눈다(최대 6개). 챕터 수도 사진에 맞춰 늘고 준다.
+ * 샘플 문구(인용문·인원 숫자)는 사실이 아니므로 지우고, 사진 장수·활동 수처럼 사진에서 계산되는 숫자만 남긴다.
+ */
+export function assignByGaps(props: any, photos: PhotoSpec[]): { props: any; msg: string } {
+  const sorted = [...photos].sort(byTime);
+  if (sorted.length < 2 || sorted.some((p) => p.ts == null)) { const r = assignEvenly(props, photos); return { props: clearSampleFacts(r.props, photos), msg: r.msg + (sorted.some((p) => p.ts == null) ? ' (촬영 시각이 없는 사진이 있어 장수로 나눔)' : '') }; }
+  const MIN = 20 * 60e3, MAX = 6;
+  const cuts = sorted.slice(1).map((p, i) => ({ i: i + 1, g: p.ts! - sorted[i].ts! })).filter((x) => x.g >= MIN).sort((a, b) => b.g - a.g).slice(0, MAX - 1).map((x) => x.i).sort((a, b) => a - b);
+  let groups: PhotoSpec[][] = []; let st = 0; for (const c of [...cuts, sorted.length]) { groups.push(sorted.slice(st, c)); st = c; }
+  // 사진이 1장뿐인 활동은 가까운 쪽(시간 간격이 더 짧은 쪽)에 합친다 — 너무 잘게 쪼개지지 않게
+  const gapBetween = (a: PhotoSpec[], b: PhotoSpec[]) => b[0].ts! - a[a.length - 1].ts!;
+  while (groups.length > 1) {
+    const k = groups.findIndex((g) => g.length < 2); if (k < 0) break;
+    const before = k > 0 ? gapBetween(groups[k - 1], groups[k]) : Infinity, after = k < groups.length - 1 ? gapBetween(groups[k], groups[k + 1]) : Infinity;
+    if (before <= after) { groups[k - 1] = [...groups[k - 1], ...groups[k]]; groups.splice(k, 1); } else { groups[k + 1] = [...groups[k], ...groups[k + 1]]; groups.splice(k, 1); }
+  }
+  if (groups.length === 1 && sorted.length >= 6) { const r = assignEvenly(props, photos); return { props: clearSampleFacts(r.props, photos), msg: r.msg + ' (시각 간격이 고르지 않아 장수로 나눔)' }; }
+  const range = (g: PhotoSpec[]) => { const t = g.map((x) => x.time).filter(Boolean).sort(); return t.length ? (t[0] === t[t.length - 1] ? t[0] : `${t[0]} – ${t[t.length - 1]}`) : ''; };
+  const chapters = groups.map((g, i) => { const base = props.chapters[i] ?? props.chapters[props.chapters.length - 1], title = `활동 ${i + 1}`, sub = range(g); return { ...base, title, sub, quote: undefined, photos: withTitle(g, title, sub) }; });
+  const r = clearSampleFacts({ ...props, chapters }, photos);
+  return finishAssign({ props: r, msg: `${sorted.length}장을 촬영 시각 간격으로 ${groups.length}개 활동으로 나눔 (20분 이상 쉰 곳이 경계)${props.school === '새싹초등학교' ? ' · 학교·학년반·장소는 샘플 값이니 고쳐 주세요' : ''}` }, photos);
+}
+function clearSampleFacts(props: any, photos: PhotoSpec[]) {
+  const first = [...photos].sort(byTime).find((p) => p.date), day = first ? `${first.date}${first.wd ? ` (${first.wd})` : ''}` : props.day;
+  return { ...props, day, chapters: props.chapters.map((c: any) => ({ ...c, quote: undefined })), stats: [{ label: '남긴 사진', n: photos.length, unit: '장' }, { label: '함께한 활동', n: props.chapters.length, unit: '가지' }] };
 }
 // 가로 사진을 대표(첫 장)로 올리고, 첫 장에 챕터 제목 자막을 붙인다
 function withTitle(list: PhotoSpec[], title: string, sub: string): PhotoSpec[] {

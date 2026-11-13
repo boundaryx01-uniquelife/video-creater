@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { travelApi, studioAssetUrls } from './travel-api.mjs';
+import { aiApi } from './ai.mjs';
 
 const TYPES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
 const AUDIO_TYPES = { 'audio/mpeg': 'mp3', 'audio/mp3': 'mp3', 'audio/wav': 'wav', 'audio/x-wav': 'wav', 'audio/wave': 'wav', 'audio/vnd.wave': 'wav', 'audio/mp4': 'm4a', 'audio/x-m4a': 'm4a', 'audio/aac': 'm4a', 'audio/ogg': 'ogg', 'application/ogg': 'ogg' };
@@ -19,7 +20,7 @@ const sniffAudio = (b) => {
   return null;
 };
 // 허용하는 컴포지션: 가로(기본 id)와 세로(`-vertical`, 1080×1920)
-const BASE_COMPS = ['event-video-sample', 'travel-video-sample', 'site-video-sample', 'store-video-sample', 'product-video-sample', 'school-video-sample', 'club-video-sample', 'grad-video-sample'];
+const BASE_COMPS = ['elem-video-sample', 'event-video-sample', 'travel-video-sample', 'site-video-sample', 'store-video-sample', 'product-video-sample', 'school-video-sample', 'club-video-sample', 'grad-video-sample'];
 const COMPS = new Set(BASE_COMPS.flatMap((c) => [c, c + '-vertical']));
 const DEFAULTS = { rendersDays: 14, uploadsDays: 60, autoClean: true }; // 정리 정책 기본값(설정에서 바꿀 수 있다)
 const MAX_QUEUE = 20, DAY = 86400e3;
@@ -111,6 +112,7 @@ export function studio(opts = {}) {
       fs.mkdirSync(up, { recursive: true }); fs.mkdirSync(out, { recursive: true });
       srv = server;
       try { if (settings().autoClean) cleanup({ skipUploads: true }); } catch { /* 정리 실패는 무시 */ }
+      aiApi(server, { send, body, dataDir: dir }); // 초등 활동 영상 문구 초안 (studio/ai.mjs)
       travelApi(server, { root, send, body, dataDir: dir, cacheDir: opts.cacheDir, workerFile: opts.workerFile, fetchScript: opts.fetchScript }); // 여행 모드 API (studio/travel-api.mjs)
       server.middlewares.use(async (req, res, next) => {
         const url = new URL(req.url, 'http://local'), p = url.pathname;
