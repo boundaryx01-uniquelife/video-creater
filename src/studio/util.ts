@@ -1,6 +1,6 @@
 import exifr from 'exifr';
 import type { PhotoSpec } from '../analysis/videoData.ts';
-import { ImportError, decodeImage } from './image.ts';
+import { ImportError, borderCrop, decodeImage } from './image.ts';
 import { uploadBlob } from './uploads.ts';
 
 export type Path = (string | number)[];
@@ -14,8 +14,9 @@ export async function importPhoto(file: File, chip: 'time' | 'date' | 'none', in
   const { bmp, warning } = await decodeImage(file); if (warning && info) info.warning = warning; // 형식·손상 검사 포함, HEIC는 여기서 변환
   let when: Date | null = null;
   try { const ex = await exifr.parse(file, { pick: ['DateTimeOriginal', 'CreateDate'] } as any); const d = ex?.DateTimeOriginal ?? ex?.CreateDate; if (d instanceof Date && !isNaN(+d)) when = d; } catch { /* EXIF 없음 */ }
-  const k = Math.min(1, 2560 / Math.max(bmp.width, bmp.height)), c = document.createElement('canvas'); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
-  c.getContext('2d')!.drawImage(bmp, 0, 0, c.width, c.height); const aspect = +(c.width / c.height).toFixed(3); bmp.close();
+  const cr = borderCrop(bmp); // 사진에 이미 들어 있는 단색 테두리는 잘라낸다
+  const k = Math.min(1, 2560 / Math.max(cr.sw, cr.sh)), c = document.createElement('canvas'); c.width = Math.round(cr.sw * k); c.height = Math.round(cr.sh * k);
+  c.getContext('2d')!.drawImage(bmp, cr.sx, cr.sy, cr.sw, cr.sh, 0, 0, c.width, c.height); const aspect = +(c.width / c.height).toFixed(3); bmp.close();
   const blob: Blob = await new Promise((r, no) => c.toBlob((b) => (b ? r(b) : no(new ImportError('사진을 JPEG로 변환하지 못했습니다.'))), 'image/jpeg', 0.9));
   const src = (await uploadBlob(blob)) ?? URL.createObjectURL(blob); // 서버 저장 실패 시 미리보기 전용 주소
   const time = when ? `${z2(when.getHours())}:${z2(when.getMinutes())}` : '', date = when ? `${when.getFullYear()}.${z2(when.getMonth() + 1)}.${z2(when.getDate())}` : '';

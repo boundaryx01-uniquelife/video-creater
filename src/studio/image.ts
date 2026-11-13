@@ -60,3 +60,29 @@ export async function decodeImage(file: File): Promise<Decoded> {
   try { return { bmp: await createImageBitmap(file, { imageOrientation: 'from-image' } as ImageBitmapOptions), kind, warning }; } catch { /* 변환 경로로 */ }
   return { bmp: await heicToBitmap(file), kind, warning };
 }
+
+/** 사진 둘레에 이미 들어 있는 단색 테두리(캡처·SNS 저장본 등)를 찾는다. 같은 색이 4변 중 3변 이상에서 확인될 때만 자르고, 한 변은 최대 20%까지만 본다 */
+export function borderCrop(bmp: ImageBitmap): { sx: number; sy: number; sw: number; sh: number } {
+  const full = { sx: 0, sy: 0, sw: bmp.width, sh: bmp.height };
+  try {
+    const k = Math.min(1, 320 / Math.max(bmp.width, bmp.height)), w = Math.max(8, Math.round(bmp.width * k)), h = Math.max(8, Math.round(bmp.height * k));
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const x = c.getContext('2d', { willReadFrequently: true })!; x.drawImage(bmp, 0, 0, w, h);
+    const d = x.getImageData(0, 0, w, h).data, TOL = 14, at = (i: number, j: number) => (j * w + i) * 4;
+    const ref = (i: number, j: number) => [d[at(i, j)], d[at(i, j) + 1], d[at(i, j) + 2]];
+    const same = (i: number, j: number, r: number[]) => Math.abs(d[at(i, j)] - r[0]) <= TOL && Math.abs(d[at(i, j) + 1] - r[1]) <= TOL && Math.abs(d[at(i, j) + 2] - r[2]) <= TOL;
+    // 변마다: 바깥 줄부터 안쪽으로, 한 줄 전체가 기준색과 같은 동안 센다
+    const sides = [
+      { r: ref(w >> 1, 0), n: (() => { let n = 0; for (; n < h * 0.2; n++) { for (let i = 0; i < w; i++) if (!same(i, n, ref(w >> 1, 0))) return n; } return n; })() },
+      { r: ref(w >> 1, h - 1), n: (() => { let n = 0; for (; n < h * 0.2; n++) { for (let i = 0; i < w; i++) if (!same(i, h - 1 - n, ref(w >> 1, h - 1))) return n; } return n; })() },
+      { r: ref(0, h >> 1), n: (() => { let n = 0; for (; n < w * 0.2; n++) { for (let j = 0; j < h; j++) if (!same(n, j, ref(0, h >> 1))) return n; } return n; })() },
+      { r: ref(w - 1, h >> 1), n: (() => { let n = 0; for (; n < w * 0.2; n++) { for (let j = 0; j < h; j++) if (!same(w - 1 - n, j, ref(w - 1, h >> 1))) return n; } return n; })() },
+    ];
+    const found = sides.filter((s) => s.n >= 2);
+    if (found.length < 3) return full;
+    const r0 = found[0].r; if (!found.every((s) => Math.abs(s.r[0] - r0[0]) <= 24 && Math.abs(s.r[1] - r0[1]) <= 24 && Math.abs(s.r[2] - r0[2]) <= 24)) return full;
+    const px = (n: number, len: number, L: number) => Math.round(Math.max(0, n - 1) / len * L) + 1; // 경계 1px 여유
+    const t = sides[0].n >= 2 ? px(sides[0].n, h, bmp.height) : 0, b = sides[1].n >= 2 ? px(sides[1].n, h, bmp.height) : 0, l = sides[2].n >= 2 ? px(sides[2].n, w, bmp.width) : 0, r = sides[3].n >= 2 ? px(sides[3].n, w, bmp.width) : 0;
+    return { sx: l, sy: t, sw: bmp.width - l - r, sh: bmp.height - t - b };
+  } catch { return full; }
+}
