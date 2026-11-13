@@ -1,7 +1,7 @@
 import type { DataIntroProps } from './introData.ts';
 import { beatFrame, beatGrid, nearestBeat, nextBeat, type AudioSpec } from '../audio/spec.ts';
 
-export type PhotoSpec = { src: string; aspect: number; time: string; date: string; wd: string; hex: string; exif: string; model: string; fy: number; fx: number; cap?: { chip: string; title: string; sub: string }; ts?: number };
+export type PhotoSpec = { src: string; aspect: number; time: string; date: string; wd: string; hex: string; exif: string; model: string; fy: number; fx: number; cap?: { chip: string; title: string; sub: string }; ts?: number; q?: number /* 선명도·노출 점수(스튜디오 가져오기에서 계산) */ };
 export type ChapterSpec = {
   index: number; total: number; big: string; small: string; kicker: string; meta: { v: string; l: string }[];
   accent: string; light: string; fromDay: number; toDay: number; style: 'fast' | 'steady' | 'slow';

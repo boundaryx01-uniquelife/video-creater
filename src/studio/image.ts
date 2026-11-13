@@ -86,3 +86,18 @@ export function borderCrop(bmp: ImageBitmap): { sx: number; sy: number; sw: numb
     return { sx: l, sy: t, sw: bmp.width - l - r, sh: bmp.height - t - b };
   } catch { return full; }
 }
+
+/** 사진 품질 점수(0~1): 라플라시안 분산으로 선명도, 평균 밝기로 노출을 본다. 인트로 대표 사진 고르기에 쓴다 */
+export function photoQuality(src: HTMLCanvasElement): number {
+  try {
+    const k = Math.min(1, 192 / Math.max(src.width, src.height)), w = Math.max(8, Math.round(src.width * k)), h = Math.max(8, Math.round(src.height * k));
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const x = c.getContext('2d', { willReadFrequently: true })!; x.drawImage(src, 0, 0, w, h);
+    const d = x.getImageData(0, 0, w, h).data, g = new Float32Array(w * h); let mean = 0;
+    for (let i = 0; i < w * h; i++) { g[i] = 0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2]; mean += g[i]; }
+    mean /= w * h; let v = 0, n = 0;
+    for (let j = 1; j < h - 1; j++) for (let i = 1; i < w - 1; i++) { const l = 4 * g[j * w + i] - g[j * w + i - 1] - g[j * w + i + 1] - g[(j - 1) * w + i] - g[(j + 1) * w + i]; v += l * l; n++; }
+    const sharp = Math.min(1, Math.sqrt(v / Math.max(1, n)) / 40), expo = 1 - Math.min(1, Math.abs(mean - 125) / 125);
+    return +(0.7 * sharp + 0.3 * expo).toFixed(3);
+  } catch { return 0.5; }
+}
