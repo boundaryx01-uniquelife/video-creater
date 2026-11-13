@@ -22,6 +22,8 @@ jobs:
       - run: npm ci
       - run: npx tsc --noEmit
       - run: npm run desktop:dist
+      - run: npm run desktop:size
+        if: always()
       - uses: actions/upload-artifact@v4
         with:
           name: photo-reel-studio-${{ matrix.name }}
