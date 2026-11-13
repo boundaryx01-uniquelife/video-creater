@@ -53,7 +53,7 @@ export const StudioApp: React.FC = () => {
   const ctx = { onChange, chip: mode.chip, busy: setBusy, modeId: mode.id, root: props };
 
   const bulk = async (files: File[]) => {
-    if (!files.length) return; const r = await importPhotos(files, mode.chip, (d, t) => setBusy(`사진 처리 중… ${d}/${t}`)); setBusy('');
+    if (!files.length) return; setBusy(`사진 처리 중… 0/${files.length}`); const r = await importPhotos(files, mode.chip, (d, t) => setBusy(`사진 처리 중… ${d}/${t}`)); setBusy('');
     if (!r.photos.length) { setNote(importSummary(r) || '가져온 사진이 없습니다.'); return; }
     const res = mode.bulk === 'agenda' ? assignByAgenda(props, r.photos) : assignEvenly(props, r.photos); setProps(res.props);
     setNote([res.msg, importSummary(r)].filter(Boolean).join(' · '));

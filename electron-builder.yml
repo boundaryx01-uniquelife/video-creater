@@ -1,0 +1,31 @@
+# 데스크톱 앱 패키징 설정. 실행: npm run desktop:dist  (결과: release/)
+# 서명되지 않은 빌드다 — Windows SmartScreen·macOS Gatekeeper 경고가 나온다. 배포용은 인증서 설정이 필요하다(docs/desktop.md).
+appId: com.photoreel.studio
+productName: Photo Reel Studio
+electronVersion: 45.3.1
+directories:
+  app: desktop
+  output: release
+asar: false            # Remotion 렌더러의 실행 파일(ffmpeg 등)과 sharp 를 압축 파일 밖에 두기 위해
+npmRebuild: false
+files:
+  - main.mjs
+  - engine-setup.mjs
+  - package.json
+  - ui/**
+  - bundle/**
+  - dist/**
+publish: null
+win:
+  target: [{ target: nsis, arch: [x64] }]
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+mac:
+  target: [{ target: dmg }, { target: zip }]
+  category: public.app-category.video
+  identity: null
+linux:
+  target: [AppImage, deb]
+  category: AudioVideo
+  maintainer: Photo Reel Studio

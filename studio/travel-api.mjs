@@ -21,8 +21,9 @@ const TID = /^[a-f0-9]{10}$/, UPLOAD = /^[a-f0-9]{20}\.(jpg|png|webp)$/;
 /** 렌더러(다른 주소의 페이지)가 받을 수 있게 props 안의 스튜디오 에셋 주소를 이 서버의 전체 주소로 바꾼다 */
 export const studioAssetUrls = (json, port) => json.replaceAll('"/studio-assets/', `"http://127.0.0.1:${port}/studio-assets/`);
 
-export function travelApi(server, { root, send, body }) {
-  const base = path.join(root, '.studio'), res = path.join(base, 'travel'), up = path.join(base, 'travel-uploads'), cache = path.join(root, '.cache');
+export function travelApi(server, { root, send, body, dataDir, cacheDir, workerFile, fetchScript }) {
+  const base = dataDir ?? path.join(root, '.studio'), res = path.join(base, 'travel'), up = path.join(base, 'travel-uploads'), cache = cacheDir ?? path.join(root, '.cache');
+  const childEnv = (extra = {}) => ({ ...process.env, ...(process.versions.electron ? { ELECTRON_RUN_AS_NODE: '1' } : {}), ...extra }); // 데스크톱 앱에서는 앱 실행 파일을 Node로 쓴다
   fs.mkdirSync(res, { recursive: true }); fs.mkdirSync(up, { recursive: true });
   const jobs = new Map(); const queue = []; let current = null, worker = null, workerReady = null, idle = null;
   const fetchState = { running: false, ok: null, log: [] };
@@ -34,7 +35,7 @@ export function travelApi(server, { root, send, body }) {
   function startFetch() {
     if (fetchState.running) return;
     Object.assign(fetchState, { running: true, ok: null, log: [] });
-    const ch = spawn(process.execPath, [path.join(root, 'scripts/fetch-data.mjs')], { cwd: root, env: process.env });
+    const ch = spawn(process.execPath, [fetchScript ?? path.join(root, 'scripts/fetch-data.mjs')], { cwd: root, env: childEnv() });
     const add = (d) => { for (const l of String(d).split('\n')) if (l.trim()) fetchState.log.push(l.trim()); if (fetchState.log.length > 40) fetchState.log.splice(0, fetchState.log.length - 40); };
     ch.stdout.on('data', add); ch.stderr.on('data', add);
     ch.on('close', (code) => { fetchState.running = false; fetchState.ok = code === 0; });
@@ -46,9 +47,12 @@ export function travelApi(server, { root, send, body }) {
     clearTimeout(idle);
     if (worker && worker.connected) return workerReady;
     workerReady = (async () => {
-      const { build } = await import('esbuild'), outfile = path.join(cache, 'travel-worker.mjs');
-      await build({ entryPoints: [path.join(root, 'scripts/travel/worker.ts')], bundle: true, platform: 'node', format: 'esm', external: ['sharp', 'exifr'], outfile, logLevel: 'silent' });
-      const w = fork(outfile, [], { cwd: root, execArgv: [], env: { ...process.env, NODE_OPTIONS: '--max-old-space-size=4096' }, stdio: ['ignore', 'inherit', 'inherit', 'ipc'] });
+      let outfile = workerFile;
+      if (!outfile) { // 개발 환경: 실행할 때마다 작업자를 새로 묶는다(앱 배포본은 미리 묶어 둔 파일을 쓴다)
+        const { build } = await import('esbuild'); outfile = path.join(cache, 'travel-worker.mjs');
+        await build({ entryPoints: [path.join(root, 'scripts/travel/worker.ts')], bundle: true, platform: 'node', format: 'esm', external: ['sharp', 'exifr'], outfile, logLevel: 'silent' });
+      }
+      const w = fork(outfile, [], { cwd: root, execArgv: [], env: childEnv({ NODE_OPTIONS: '--max-old-space-size=4096' }), stdio: ['ignore', 'inherit', 'inherit', 'ipc'] });
       w.on('message', onWorker);
       w.on('exit', (code) => { if (worker === w) worker = null; if (current && !current.done) { fail(current, 'worker-exit', '작업 프로세스가 중단되었습니다(메모리 부족일 수 있습니다). 사진 수를 줄여 다시 시도해 주세요.'); } });
       worker = w; await new Promise((ok) => { const f = (m) => { if (m?.t === 'ready') { w.off('message', f); ok(); } }; w.on('message', f); });

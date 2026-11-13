@@ -36,6 +36,7 @@ const JobRow: React.FC<{ j: RJob; onCancel: () => void; onDelete: () => void }> 
 
 export const RenderPanel: React.FC<{ modeId: string; modeName: string; comp: string; props: any; planErr: string; server: boolean | null; needLicense?: boolean; audioLicensed?: boolean }> = ({ modeId, modeName, comp, props, planErr, server, needLicense = false, audioLicensed = false }) => {
   const [jobs, setJobs] = useState<RJob[]>([]), [st, setSt] = useState<Storage | null>(null), [seconds, setSeconds] = useState('8'), [scale, setScale] = useState('720'), [msg, setMsg] = useState('');
+  const [engine, setEngine] = useState<{ state: string; detail: string; percent: number } | null>(null); // 데스크톱 앱의 렌더 엔진(Chrome) 준비 상태
   const [cfg, setCfg] = useState({ rendersDays: 14, uploadsDays: 60, autoClean: true }), autoDone = useRef(false), timer = useRef<number>(0);
   const keepList = useCallback(() => [...new Set([...referencedUploads(), ...(JSON.stringify(props).match(/\/?uploads\/[\w.-]+/g) ?? []).map((x) => (x.startsWith('/') ? x : '/' + x))])], [props]);
 
@@ -49,6 +50,12 @@ export const RenderPanel: React.FC<{ modeId: string; modeName: string; comp: str
     tick(); return () => { dead = true; clearTimeout(timer.current); };
   }, [server, refresh]);
 
+  useEffect(() => { // /api/engine 은 데스크톱 앱에만 있다(개발 서버에서는 404 → 표시 없음)
+    if (server === false) return; let dead = false, t = 0;
+    const tick = async () => { try { const r = await fetch('/api/engine'); const j = r.ok && (r.headers.get('content-type') ?? '').includes('json') ? await r.json() : null; if (dead) return; setEngine(j); if (j && (j.state === 'checking' || j.state === 'downloading')) t = window.setTimeout(tick, 1500); } catch { /* 없음 */ } };
+    tick(); return () => { dead = true; clearTimeout(t); };
+  }, [server]);
+  const engineBusy = engine?.state === 'checking' || engine?.state === 'downloading';
   const enqueue = async () => {
     setMsg(''); const label = seconds === '0' ? '전체 길이' : `처음 ${seconds}초`;
     try { await post('/api/render', { comp, props, scale, seconds: Number(seconds), audioLicensed, name: `${modeName} · ${label} · ${scale}p` }); await refresh(); } catch (e) { setMsg(`대기열에 추가하지 못했습니다: ${(e as Error).message}`); }
@@ -60,8 +67,10 @@ export const RenderPanel: React.FC<{ modeId: string; modeName: string; comp: str
     <section className="render rq" aria-label="MP4 렌더">
       <label>범위<select value={seconds} onChange={(e) => setSeconds(e.target.value)}><option value="8">처음 8초 (빠른 확인)</option><option value="0">전체 길이</option></select></label>
       <label>화질<select value={scale} onChange={(e) => setScale(e.target.value)}><option value="720">720p</option><option value="1080">1080p</option></select></label>
-      <button className="primary" onClick={enqueue} disabled={!server || !!planErr || needLicense} title={needLicense ? '음원 사용 권한을 확인해야 합니다' : undefined}>{seconds === '0' ? '전체 길이 MP4 만들기' : '8초 미리 렌더'}{active ? ` (대기열 ${active})` : ''}</button>
+      <button className="primary" onClick={enqueue} disabled={!server || !!planErr || needLicense || engineBusy} title={needLicense ? '음원 사용 권한을 확인해야 합니다' : undefined}>{seconds === '0' ? '전체 길이 MP4 만들기' : '8초 미리 렌더'}{active ? ` (대기열 ${active})` : ''}</button>
       {needLicense && <span className="hint" data-testid="lic-hint">음악이 있어 MP4는 "상업적 이용 권한이 있는 음원입니다"를 체크해야 만들 수 있습니다. 미리보기는 가능합니다.</span>}
+      {engine && engine.state !== 'ready' && <span className="hint" data-testid="engine-hint" role="status">{engine.detail}{engine.state === 'downloading' && engine.percent > 0 ? ` ${engine.percent}%` : ''}</span>}
+      {engine?.state === 'ready' && engine.detail && <span className="hint" data-testid="engine-hint">{engine.detail}</span>}
       {server === false && <span className="hint">렌더 서버가 없습니다. <code>npm run dev</code>로 실행한 화면에서만 MP4를 만들 수 있습니다.</span>}
       {msg && <div className="hint warnline" role="status">{msg}</div>}
       {mine.length > 0 && <ul className="jobs" aria-live="polite">{mine.map((j) => <JobRow key={j.id} j={j} onCancel={() => act(() => post(`/api/render/${j.id}/cancel`))} onDelete={() => act(() => api(`/api/render/${j.id}`, { method: 'DELETE' }))} />)}</ul>}

@@ -32,6 +32,7 @@ export function explain(msg) {
   const m = String(msg);
   if (/ENOSPC|no space left/i.test(m)) return '디스크 공간이 부족합니다. 아래 "저장 공간"에서 오래된 파일을 정리한 뒤 다시 시도하세요.';
   if (/browser|chrom|executable/i.test(m) && /(not found|could not|failed to launch|ENOENT)/i.test(m)) return '렌더용 Chrome을 찾지 못했습니다. CHROME_BIN 환경 변수에 Chrome 실행 파일 경로를 지정하세요.';
+  if (/ENOTFOUND|EAI_AGAIN|ETIMEDOUT|ECONNREFUSED|ECONNRESET/.test(m) && /remotion\.media|storage\.googleapis|chrome|browser|download/i.test(m)) return '렌더용 Chrome을 내려받지 못했습니다. 인터넷 연결(회사 방화벽·프록시 포함)을 확인하고 앱을 다시 실행하세요. PC에 Chrome 또는 Edge가 설치돼 있으면 자동으로 그것을 사용합니다.';
   if (/ERR_CONNECTION|net::|Failed to (load|fetch)|404/i.test(m)) return '사진 또는 글꼴 주소를 불러오지 못했습니다. 서버에 저장되지 않은 사진이 있는지 확인하세요.';
   if (/delayRender|Timed out|timeout/i.test(m)) return '장면을 준비하는 시간이 초과되었습니다. 사진이 너무 크거나 컴퓨터가 바쁜 경우입니다. 다시 시도하세요.';
   if (/memory|OOM|heap/i.test(m)) return '메모리가 부족합니다. 화질을 720p로 낮추거나 다른 프로그램을 닫고 다시 시도하세요.';
@@ -39,8 +40,12 @@ export function explain(msg) {
   return '';
 }
 
-export function studio() {
-  const root = process.cwd(), dir = path.join(root, '.studio'), up = path.join(dir, 'uploads'), out = path.join(dir, 'renders'), settingsFile = path.join(dir, 'settings.json');
+/**
+ * opts(데스크톱 앱용, 모두 선택): root(소스 위치), dataDir(업로드·렌더·설정 저장 위치), bundleDir(미리 만든 Remotion 번들),
+ * cacheDir, workerFile(미리 만든 여행 작업자), fetchScript(지도 데이터 내려받기 스크립트)
+ */
+export function studio(opts = {}) {
+  const root = opts.root ?? process.cwd(), dir = opts.dataDir ?? path.join(root, '.studio'), up = path.join(dir, 'uploads'), out = path.join(dir, 'renders'), settingsFile = path.join(dir, 'settings.json');
   const jobs = new Map(), queue = []; let bundling = null, current = null, lastRate = 0, srv = null;
   const send = (res, code, obj) => { res.statusCode = code; res.setHeader('content-type', 'application/json; charset=utf-8'); res.end(JSON.stringify(obj)); };
   const body = (req, limit) => new Promise((ok, no) => { const ch = []; let n = 0; req.on('data', (c) => { n += c.length; if (n > limit) { no(new Error('파일이 너무 큽니다')); req.destroy(); } else ch.push(c); }); req.on('end', () => ok(Buffer.concat(ch))); req.on('error', no); });
@@ -61,8 +66,8 @@ export function studio() {
   async function run(job) {
     current = job; job.status = 'running'; job.startedAt = Date.now(); job.stage = '영상 엔진 준비'; log(job, '렌더 시작');
     try {
-      const { bundle } = await import('@remotion/bundler'); const { renderMedia, selectComposition, makeCancelSignal } = await import('@remotion/renderer');
-      bundling ??= bundle({ entryPoint: path.join(root, 'src/remotion/index.ts'), publicDir: path.join(root, 'public') });
+      const { renderMedia, selectComposition, makeCancelSignal } = await import('@remotion/renderer');
+      bundling ??= opts.bundleDir ? Promise.resolve(opts.bundleDir) : import('@remotion/bundler').then(({ bundle }) => bundle({ entryPoint: path.join(root, 'src/remotion/index.ts'), publicDir: path.join(root, 'public') }));
       const serveUrl = await bundling, browserExecutable = process.env.CHROME_BIN || undefined;
       if (job.canceled) throw new Error('cancelled');
       // 업로드 사진은 번들에 없으므로 이 서버의 주소로 바꿔서 렌더러가 받아 가게 한다
@@ -106,7 +111,7 @@ export function studio() {
       fs.mkdirSync(up, { recursive: true }); fs.mkdirSync(out, { recursive: true });
       srv = server;
       try { if (settings().autoClean) cleanup({ skipUploads: true }); } catch { /* 정리 실패는 무시 */ }
-      travelApi(server, { root, send, body }); // 여행 모드 API (studio/travel-api.mjs)
+      travelApi(server, { root, send, body, dataDir: dir, cacheDir: opts.cacheDir, workerFile: opts.workerFile, fetchScript: opts.fetchScript }); // 여행 모드 API (studio/travel-api.mjs)
       server.middlewares.use(async (req, res, next) => {
         const url = new URL(req.url, 'http://local'), p = url.pathname;
         try {

@@ -4,3 +4,9 @@ dist
 data
 .cache
 .studio
+desktop/ui
+desktop/bundle
+desktop/dist
+desktop/node_modules
+desktop/package-lock.json
+release

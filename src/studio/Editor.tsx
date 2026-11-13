@@ -31,7 +31,7 @@ const PhotoStrip: React.FC<{ photos: PhotoSpec[]; path: Path; ctx: Ctx }> = ({ p
   const set = (list: PhotoSpec[]) => ctx.onChange(path, list);
   const move = (d: number) => { const j = si + d; if (j < 0 || j >= photos.length) return; const l = [...photos]; [l[si], l[j]] = [l[j], l[si]]; set(l); setSel(j); };
   const cap = (k: 'chip' | 'title' | 'sub', v: string) => set(photos.map((p, i) => (i === si ? { ...p, cap: { chip: '', title: '', sub: '', ...p.cap, [k]: v } } : p)));
-  const addFiles = async (fs: File[]) => { if (!fs.length) return; const r = await importPhotos(fs, ctx.chip, (d, t) => ctx.busy(`사진 처리 중… ${d}/${t}`)); ctx.busy(importSummary(r)); if (r.photos.length) set([...photos, ...r.photos]); };
+  const addFiles = async (fs: File[]) => { if (!fs.length) return; ctx.busy(`사진 처리 중… 0/${fs.length}`); const r = await importPhotos(fs, ctx.chip, (d, t) => ctx.busy(`사진 처리 중… ${d}/${t}`)); ctx.busy(importSummary(r)); if (r.photos.length) set([...photos, ...r.photos]); };
   const reorder = (from: number, to: number) => { if (from === to || from < 0 || to < 0 || from >= photos.length || to >= photos.length) return; const l = [...photos], [m] = l.splice(from, 1); l.splice(to, 0, m); set(l); setSel(to); };
   const [over, setOver] = useState(false);
   const key = (i: number) => (e: React.KeyboardEvent) => {

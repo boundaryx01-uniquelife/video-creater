@@ -60,7 +60,7 @@ export function travelFromPhotos(photos: Photo[], places: PlaceLite[], o: FromPh
     cand.push(pool.filter((p) => o.srcOf(p)).sort((a, b) => a.t - b.t).map((p) => ({ src: o.srcOf(p)!, aspect: p.aspect ?? 1.5, time: hm(p.t), date: '', wd: '', hex: '#ff6b4a', exif: '', model: String(p.Model ?? ''), fy: 0.42, fx: 0.5, cap: { chip: hm(p.t), title: '', sub: '' }, ts: p.t * 60000 })));
     return { name, sub, lat: +c.lat.toFixed(5), lon: +c.lon.toFixed(5), arrive: wall(t0), depart: wall(t1), tz: nm.tz || undefined, photos: specs };
   });
-  const a = D(gp[0]?.t ?? 0), b = D(gp[gp.length - 1]?.t ?? 0), days = new Set(gp.map((p) => Math.floor(p.t / 1440))).size;
+  const a = D(gp[0]?.t ?? 0), b = D(gp[gp.length - 1]?.t ?? 0), days = gp.length ? Math.floor(Math.max(...gp.map((p) => p.t)) / 1440) - Math.floor(Math.min(...gp.map((p) => p.t)) / 1440) + 1 : 0; // 사진이 있는 날 수가 아니라 첫날~마지막 날의 달력상 일수
   const main = [...stops].map((s, i) => ({ s, i, n: cls[i].ps.length })).sort((x, y) => y.n - x.n).slice(0, 2).sort((x, y) => x.i - y.i).map((x) => x.s.name.split(' ')[0]);
   const info = { kicker: 'TRAVEL LOG', title: `${[...new Set(main)].join(' · ')}\n${days <= 1 ? '당일 여행' : `${days - 1}박 ${days}일`}`, sub: stops.length ? `${stops[0].name}에서 ${stops[stops.length - 1].name}까지` : '', range: `${a.getUTCFullYear()}.${z2(a.getUTCMonth() + 1)}.${z2(a.getUTCDate())} – ${z2(b.getUTCMonth() + 1)}.${z2(b.getUTCDate())}` };
   // 구간별 순항 속도 힌트: 이동 중에 찍힌 사진까지 포함해, 연속한 두 GPS 사진 사이(5km 이상)의 최고 속도

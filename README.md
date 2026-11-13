@@ -31,6 +31,15 @@ CHROME_BIN=<chrome 경로> npm run dev     # http://localhost:5173
 - 서버 API(`studio/plugin.mjs`)는 인증이 없는 로컬 전용이다. 외부에 공개된 서버로 띄우지 말 것.
 - 여행 모드는 문구와 사진만 바꿀 수 있다. 정차지·경로는 아래 `build:travel`로 만든다.
 
+## 데스크톱 앱
+
+설치형 앱(Windows·macOS·Linux)으로도 쓸 수 있다. 화면·기능은 웹 스튜디오와 같고, 사진과 영상은 내 PC에만 저장된다. 설치 파일은 GitHub Actions의 *Desktop build*에서 받는다. 자세한 내용과 확인 상태는 [docs/desktop.md](docs/desktop.md).
+
+```bash
+npm run desktop        # 개발용 바로 실행
+npm run desktop:dist   # 설치 파일 만들기 → release/
+```
+
 ## 실행
 
 ```bash
