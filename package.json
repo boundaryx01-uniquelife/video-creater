@@ -13,7 +13,7 @@
     "build:ingest": "node tools/build-ingest.mjs",
     "desktop": "node desktop/build.mjs && electron desktop",
     "desktop:build": "node desktop/build.mjs",
-    "desktop:dist": "node desktop/build.mjs && cd desktop && npm install --omit=dev --no-audit --no-fund && cd .. && electron-builder --config electron-builder.yml",
+    "desktop:dist": "node desktop/build.mjs && cd desktop && npm install --omit=dev --no-audit --no-fund && cd .. && electron-builder --config electron-builder.config.mjs",
     "desktop:size": "node desktop/report-size.mjs"
   },
   "dependencies": {

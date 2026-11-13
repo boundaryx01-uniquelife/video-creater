@@ -9,7 +9,7 @@ GitHub → **Actions → Desktop build → Run workflow** 를 실행하면 Windo
 서명하지 않은 빌드라 처음 실행할 때 경고가 나온다.
 - Windows: "Windows의 PC 보호" → *추가 정보 → 실행*
 - macOS: 앱을 우클릭 → *열기* (또는 시스템 설정 → 개인정보 보호 및 보안 → *그래도 열기*)
-- 회사에 배포하려면 코드 서명 인증서(Windows EV/OV, Apple Developer ID)를 구해 `electron-builder.yml`에 설정해야 한다.
+- 회사에 배포하려면 코드 서명 인증서(Windows EV/OV, Apple Developer ID)를 구해 [docs/signing.md](signing.md)의 절차대로 설정한다(코드는 준비돼 있고 인증서만 넣으면 된다).
 
 ## 내 PC에서 직접 빌드
 

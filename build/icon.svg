@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <clipPath id="inner"><rect x="244" y="304" width="536" height="416" rx="20"/></clipPath>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1c1f27"/><stop offset="1" stop-color="#0b0c10"/></linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="228" fill="url(#bg)"/>
+  <!-- 사진 틀(크림색 테두리) -->
+  <rect x="196" y="256" width="632" height="512" rx="44" fill="#ece6d6"/>
+  <rect x="244" y="304" width="536" height="416" rx="20" fill="#0f1116"/>
+  <!-- 사진 속 산 능선 -->
+  <path clip-path="url(#inner)" d="M244 720 L244 650 L400 560 L500 640 L610 545 L780 660 L780 720 Z" fill="#2b3340"/>
+  <!-- 재생 삼각형(코랄) -->
+  <path d="M470 384 L470 548 L612 466 Z" fill="#ff6b4a"/>
+  <!-- 필름 구멍 -->
+  <g fill="#ece6d6">
+    <rect x="196" y="800" width="64" height="40" rx="10"/><rect x="306" y="800" width="64" height="40" rx="10"/>
+    <rect x="416" y="800" width="64" height="40" rx="10"/><rect x="526" y="800" width="64" height="40" rx="10"/>
+    <rect x="636" y="800" width="64" height="40" rx="10"/><rect x="746" y="800" width="64" height="40" rx="10"/>
+  </g>
+</svg>

@@ -59,7 +59,7 @@ async function start() {
     onEngine: () => engine,
   });
   prepareEngine();
-  win = new BrowserWindow({ width: 1440, height: 920, minWidth: 1100, minHeight: 700, title: 'Photo Reel Studio', backgroundColor: '#0e0f12', autoHideMenuBar: true, webPreferences: { contextIsolation: true, sandbox: true } });
+  win = new BrowserWindow({ width: 1440, height: 920, minWidth: 1100, minHeight: 700, title: 'Photo Reel Studio', icon: path.join(here, 'icon.png'), backgroundColor: '#0e0f12', autoHideMenuBar: true, webPreferences: { contextIsolation: true, sandbox: true } });
   // 앱 화면 밖 주소는 기본 브라우저로 연다(앱 안에서 다른 사이트를 열지 않음)
   const origin = `http://127.0.0.1:${server.port}`;
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:/.test(url) && !url.startsWith(origin)) shell.openExternal(url); return { action: 'deny' }; });
