@@ -15,28 +15,36 @@ jobs:
           - { os: macos-latest, name: macos-arm64 }
           - { os: ubuntu-latest, name: linux }
     runs-on: ${{ matrix.os }}
-    # 서명 정보는 저장소 Secrets 에 넣는다(docs/signing.md). 비어 있으면 서명 없이 빌드된다. OS별로 필요한 것만 전달한다
-    env:
-      CSC_LINK: ${{ matrix.name == 'macos-arm64' && secrets.MAC_CSC_LINK || '' }}
-      CSC_KEY_PASSWORD: ${{ matrix.name == 'macos-arm64' && secrets.MAC_CSC_KEY_PASSWORD || '' }}
-      APPLE_ID: ${{ matrix.name == 'macos-arm64' && secrets.APPLE_ID || '' }}
-      APPLE_APP_SPECIFIC_PASSWORD: ${{ matrix.name == 'macos-arm64' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
-      APPLE_TEAM_ID: ${{ matrix.name == 'macos-arm64' && secrets.APPLE_TEAM_ID || '' }}
-      WIN_CERT_B64: ${{ matrix.name == 'windows' && secrets.WIN_CERT_BASE64 || '' }}
-      WIN_CSC_KEY_PASSWORD: ${{ matrix.name == 'windows' && secrets.WIN_CSC_KEY_PASSWORD || '' }}
-      AZURE_TENANT_ID: ${{ matrix.name == 'windows' && secrets.AZURE_TENANT_ID || '' }}
-      AZURE_CLIENT_ID: ${{ matrix.name == 'windows' && secrets.AZURE_CLIENT_ID || '' }}
-      AZURE_CLIENT_SECRET: ${{ matrix.name == 'windows' && secrets.AZURE_CLIENT_SECRET || '' }}
-      AZ_SIGN_ENDPOINT: ${{ matrix.name == 'windows' && vars.AZ_SIGN_ENDPOINT || '' }}
-      AZ_SIGN_ACCOUNT: ${{ matrix.name == 'windows' && vars.AZ_SIGN_ACCOUNT || '' }}
-      AZ_SIGN_PROFILE: ${{ matrix.name == 'windows' && vars.AZ_SIGN_PROFILE || '' }}
-      AZ_SIGN_PUBLISHER: ${{ matrix.name == 'windows' && vars.AZ_SIGN_PUBLISHER || '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci
       - run: npx tsc --noEmit
+      - name: 서명 정보 준비(값이 있는 것만 환경 변수로 전달)
+        shell: bash
+        env:
+          # 서명 정보는 저장소 Secrets/Variables 에 넣는다(docs/signing.md). 비어 있으면 서명 없이 빌드된다.
+          # 빈 문자열로 환경 변수를 만들면 electron-builder 가 "정의됨"으로 보고 실패하므로, 값이 있는 것만 GITHUB_ENV 로 넘긴다
+          CSC_LINK: ${{ matrix.name == 'macos-arm64' && secrets.MAC_CSC_LINK || '' }}
+          CSC_KEY_PASSWORD: ${{ matrix.name == 'macos-arm64' && secrets.MAC_CSC_KEY_PASSWORD || '' }}
+          APPLE_ID: ${{ matrix.name == 'macos-arm64' && secrets.APPLE_ID || '' }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ matrix.name == 'macos-arm64' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ matrix.name == 'macos-arm64' && secrets.APPLE_TEAM_ID || '' }}
+          WIN_CERT_B64: ${{ matrix.name == 'windows' && secrets.WIN_CERT_BASE64 || '' }}
+          WIN_CSC_KEY_PASSWORD: ${{ matrix.name == 'windows' && secrets.WIN_CSC_KEY_PASSWORD || '' }}
+          AZURE_TENANT_ID: ${{ matrix.name == 'windows' && secrets.AZURE_TENANT_ID || '' }}
+          AZURE_CLIENT_ID: ${{ matrix.name == 'windows' && secrets.AZURE_CLIENT_ID || '' }}
+          AZURE_CLIENT_SECRET: ${{ matrix.name == 'windows' && secrets.AZURE_CLIENT_SECRET || '' }}
+          AZ_SIGN_ENDPOINT: ${{ matrix.name == 'windows' && vars.AZ_SIGN_ENDPOINT || '' }}
+          AZ_SIGN_ACCOUNT: ${{ matrix.name == 'windows' && vars.AZ_SIGN_ACCOUNT || '' }}
+          AZ_SIGN_PROFILE: ${{ matrix.name == 'windows' && vars.AZ_SIGN_PROFILE || '' }}
+          AZ_SIGN_PUBLISHER: ${{ matrix.name == 'windows' && vars.AZ_SIGN_PUBLISHER || '' }}
+        run: |
+          for k in CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID WIN_CERT_B64 WIN_CSC_KEY_PASSWORD AZURE_TENANT_ID AZURE_CLIENT_ID AZURE_CLIENT_SECRET AZ_SIGN_ENDPOINT AZ_SIGN_ACCOUNT AZ_SIGN_PROFILE AZ_SIGN_PUBLISHER; do
+            v="${!k}"
+            if [ -n "$v" ]; then echo "::add-mask::$v"; echo "$k=$v" >> "$GITHUB_ENV"; echo "$k: 설정됨"; fi
+          done
       - name: Windows 인증서(.pfx) 준비
         if: env.WIN_CERT_B64 != ''
         shell: pwsh
