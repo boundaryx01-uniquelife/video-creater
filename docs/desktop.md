@@ -33,7 +33,8 @@ npm run desktop:dist   # 설치 파일 만들기 → release/  (현재 OS용만 
 - 확인(Linux, 가상 화면): 앱 실행, 화면·API, 사진→여행 영상 빌드 작업자, MP4 렌더, 외부 Host/Origin 차단, Chrome을 내려받지 못할 때 설치된 브라우저로 대체. 설치 폴더만 복사해 다른 위치에서 실행해도 동작.
 - **미확인: Windows·macOS 실행**(이 개발 환경에서는 만들 수 없어 CI로만 빌드). 첫 빌드 후 실제 PC에서 설치·실행·MP4 렌더를 확인해야 한다.
 - 자동 업데이트·코드 서명·앱 아이콘은 아직 없다(기본 Electron 아이콘).
-- 앱 용량이 크다(압축 설치 파일 약 150–200MB 예상): 영상 엔진 번들과 샘플 사진·지형 이미지가 들어 있다.
+- CI 빌드는 Windows·macOS(arm64)·Linux 모두 성공했다(2026-11-13). 다만 **용량이 크다**: Actions 결과물 기준 Windows 약 720MB, macOS 약 500MB(dmg+zip), Linux 약 460MB(AppImage+deb). 영상 엔진 번들·샘플 사진·지형 이미지·폰트가 들어 있고 asar 압축을 끈 영향이다. 줄이는 작업(미사용 폰트·샘플 정리, asar 사용)은 아직 안 했다.
+- macOS는 Apple Silicon(arm64)용만 만든다. Intel Mac용은 워크플로 matrix에 추가해야 한다.
 
 ## 라이선스 주의
 
