@@ -4,7 +4,7 @@
 
 ## 설치 파일 받기
 
-GitHub → **Actions → Desktop build → Run workflow** 를 실행하면 Windows(`.exe`), macOS(`.dmg`), Linux(`.AppImage`, `.deb`)가 만들어진다. 실행 화면 아래 **Artifacts** 에서 내려받는다.
+GitHub → **Actions → Desktop build → Run workflow** 를 실행하면 Windows(`.exe`), macOS Apple Silicon·Intel(`.dmg`), Linux(`.AppImage`, `.deb`)가 만들어진다. 실행 화면 아래 **Artifacts** 에서 내려받는다.
 
 서명하지 않은 빌드라 처음 실행할 때 경고가 나온다.
 - Windows: "Windows의 PC 보호" → *추가 정보 → 실행*
@@ -34,7 +34,7 @@ npm run desktop:dist   # 설치 파일 만들기 → release/  (현재 OS용만 
 - **미확인: Windows·macOS 실행**(이 개발 환경에서는 만들 수 없어 CI로만 빌드). 첫 빌드 후 실제 PC에서 설치·실행·MP4 렌더를 확인해야 한다.
 - 앱 아이콘은 적용됐다(`build/icon.svg`). 코드 서명은 **준비만** 됐다 — 인증서를 넣으면 서명·공증하는 설정과 CI 연결이 있고([signing.md](signing.md)), 인증서 없이는 서명 없이 빌드된다(macOS는 ad-hoc 서명, 로컬·CI 빌드 성공까지 확인). 자동 업데이트는 아직 없다.
 - CI 빌드는 Windows·macOS(arm64)·Linux 모두 성공했다(2026-11-13). 설치 파일 크기: Windows 약 186MB(exe 1개), macOS 약 186MB×2(dmg·zip), Linux 약 165MB×2(AppImage·deb). 줄이기 전에는 Windows 722MB, macOS 504MB(dmg+zip), Linux 460MB(AppImage+deb)였다. 줄인 방법: 쓰지 않는 woff 글꼴 중복 삭제, 소스맵 제거, 샘플 사진 재압축, Chromium 언어 파일 축소, 최대 압축, Windows 빌드에 불필요한 패키지가 딸려 들어가던 설치 방식 수정. 남은 용량 대부분은 Electron 본체(약 100MB 압축)와 영상 엔진 번들·글꼴이다.
-- macOS는 Apple Silicon(arm64)용만 만든다. Intel Mac용은 워크플로 matrix에 추가해야 한다.
+- macOS는 Apple Silicon(arm64)용과 Intel(x64)용을 각각 만든다(Intel은 `macos-15-intel` 러너). 설치 파일 이름: arm64는 `…-arm64.dmg`, Intel은 `…-0.1.0.dmg`(접미사 없음). 두 빌드 모두 CI 성공까지만 확인했고 실제 Mac에서의 실행은 미확인이다.
 
 ## 라이선스 주의
 
