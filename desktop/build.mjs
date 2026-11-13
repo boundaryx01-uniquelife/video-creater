@@ -16,7 +16,7 @@ await viteBuild({ configFile: path.join(root, 'vite.config.ts'), logLevel: 'warn
 step('2/4 영상 엔진 번들 (Remotion)');
 const { bundle } = await import('@remotion/bundler');
 fs.rmSync(d('bundle'), { recursive: true, force: true });
-await bundle({ entryPoint: path.join(root, 'src/remotion/index.ts'), publicDir: path.join(root, 'public'), outDir: d('bundle') });
+await bundle({ entryPoint: path.join(root, 'src/remotion/index.ts'), publicDir: path.join(root, 'public'), outDir: d('bundle'), webpackOverride: (c) => ({ ...c, devtool: false }) }); // 소스맵은 배포본에 필요 없다(24MB)
 
 step('3/4 서버·여행 작업자 묶기 (esbuild)');
 const { build } = await import('esbuild');
@@ -25,6 +25,19 @@ const common = { bundle: true, platform: 'node', format: 'esm', logLevel: 'warni
 await build({ ...common, entryPoints: [d('server.mjs')], outfile: d('dist/server.mjs'), external: ['@remotion/bundler', '@remotion/renderer', 'esbuild', 'sharp', 'exifr'] });
 await build({ ...common, entryPoints: [path.join(root, 'scripts/travel/worker.ts')], outfile: d('dist/travel-worker.mjs'), external: ['sharp', 'exifr'] });
 fs.copyFileSync(path.join(root, 'scripts/fetch-data.mjs'), d('dist/fetch-data.mjs'));
+
+step('용량 줄이기');
+// ① 글꼴: @fontsource CSS는 woff2 다음에 woff를 대체 형식으로 적어 두지만 앱의 Chromium은 woff2만 쓴다 → woff 파일은 받지 않으므로 지워도 된다
+let freed = 0;
+const walk = (dir, fn) => { for (const e of fs.readdirSync(dir, { withFileTypes: true })) { const f = path.join(dir, e.name); e.isDirectory() ? walk(f, fn) : fn(f); } };
+for (const base of [d('ui'), d('bundle')]) walk(base, (f) => { if (/\.woff$/i.test(f)) { freed += fs.statSync(f).size; fs.unlinkSync(f); } });
+// ② 샘플 사진(블러 합성 이미지)은 다시 압축한다. 저장소의 원본은 건드리지 않고 번들 복사본만 바꾼다
+const sharp = (await import('sharp')).default; let before = 0, after = 0;
+for (const f of fs.readdirSync(d('bundle/public/media'))) {
+  if (!/^(?!terrain_).*\.jpe?g$/i.test(f)) continue; const p = d('bundle/public/media', f); const buf = fs.readFileSync(p);
+  const out = await sharp(buf).jpeg({ quality: 82, mozjpeg: true }).toBuffer(); before += buf.length; if (out.length < buf.length) { fs.writeFileSync(p, out); after += out.length; } else after += buf.length;
+}
+console.log(`woff ${(freed / 1e6).toFixed(1)}MB 삭제 · 샘플 사진 ${(before / 1e6).toFixed(1)}→${(after / 1e6).toFixed(1)}MB`);
 
 step('4/4 확인');
 const need = [d('ui/index.html'), d('bundle/index.html'), d('dist/server.mjs'), d('dist/travel-worker.mjs'), d('dist/fetch-data.mjs')];

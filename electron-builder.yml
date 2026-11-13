@@ -6,6 +6,8 @@ electronVersion: 45.3.1
 directories:
   app: desktop
   output: release
+compression: maximum
+electronLanguages: [ko, en-US]   # Chromium 언어 파일은 한국어·영어만
 asar: false            # Remotion 렌더러의 실행 파일(ffmpeg 등)과 sharp 를 압축 파일 밖에 두기 위해
 npmRebuild: false
 files:
