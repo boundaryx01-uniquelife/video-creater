@@ -72,7 +72,7 @@ const Intro: React.FC<{ p: ElemProps }> = ({ p }) => {
             </div>
           ))}
         </div>
-        <div style={{ marginTop: portrait ? 40 : 44, display: 'flex', flexWrap: 'wrap', gap: 16, maxWidth: portrait ? undefined : W * 0.45 }}>
+        <div style={{ marginTop: portrait ? 40 : 44, display: 'flex', flexWrap: 'wrap', gap: 16, maxWidth: portrait ? undefined : W * 0.4 }}>
           {info.map((t, i) => <div key={i} style={{ transform: `translateY(${(1 - pop(f, 34 + i * 4)) * 40}px)`, opacity: clamp(pop(f, 34 + i * 4) * 2, 0, 1) }}><Pill text={t} bg={T.pal[i % T.pal.length]} size={portrait ? 34 : 32} /></div>)}
         </div>
       </div>

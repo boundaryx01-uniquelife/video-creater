@@ -3,6 +3,7 @@ import type { PhotoSpec } from '../analysis/videoData.ts';
 import { ACCEPT } from './image.ts';
 import { assignByGaps, importPhotos, importSummary } from './util.ts';
 import { curate, secondsOf } from '../elem/curate.ts';
+import { timeNames } from '../elem/arrange.ts';
 import { applyOps, stateSummary, type Op } from '../elem/ops.ts';
 import { parseEdit, parseGoal } from '../elem/rules.ts';
 import type { ElemProps } from '../elem/types.ts';
@@ -17,14 +18,6 @@ const summarize = (chapters: ElemProps['chapters']) => chapters.map((c) => {
   const ts = c.photos.map((p) => (HM.test(p.time) ? p.time : '')).filter(Boolean).sort();
   return { photos: c.photos.length, range: ts.length ? (ts[0] === ts[ts.length - 1] ? ts[0] : `${ts[0]}–${ts[ts.length - 1]}`) : '' };
 });
-/** AI가 없고 활동 이름도 받지 못했을 때: 지어내지 않고 촬영 시각으로만 이름을 붙인다 */
-function timeNames(chapters: ElemProps['chapters']): string[] {
-  const part = (c: ElemProps['chapters'][number]) => { const t = c.photos.map((p) => p.time).filter((x) => HM.test(x)).sort()[0]; if (!t) return '활동'; const h = Number(t.split(':')[0]) + Number(t.split(':')[1]) / 60; return h < 11.5 ? '오전 활동' : h < 13.5 ? '점심 무렵' : h < 17 ? '오후 활동' : '저녁 활동'; };
-  const names = chapters.map(part), count: Record<string, number> = {}, seen: Record<string, number> = {};
-  names.forEach((n) => { count[n] = (count[n] ?? 0) + 1; });
-  return names.map((n) => (count[n] > 1 ? `${n} ${(seen[n] = (seen[n] ?? 0) + 1)}` : n));
-}
-
 type Turn = { text: string; done: string[]; skipped: string[]; unmatched: string[]; ai: boolean; message?: string };
 const EXAMPLES = ['더 짧게 해줘', '세로 영상으로 바꿔줘', '색을 파란색으로', '2번째 활동 빼줘', '제목을 "…"로 바꿔줘', '비슷한 사진 정리해줘'];
 
@@ -53,7 +46,7 @@ export const ElemMaker: React.FC<{ props: ElemProps; setProps: (p: any) => void;
       const c1 = curate({ ...base, pace: 1 }, rule.targetSec);
       const r = await post('/api/ai/compose', { goal, brief: rule, keywords: keywords.join(', '), school: rule.school || (base.school === '새싹초등학교' ? '' : base.school), klass: rule.klass || (base.school === '새싹초등학교' ? '' : base.klass), day: base.day, place: base.school === '새싹초등학교' ? '' : base.place, chapters: summarize(c1.props.chapters) });
       const b = r.brief, d = r.draft, ai = r.source === 'ai';
-      const fitted = b.targetSec !== rule.targetSec ? curate({ ...base, pace: 1 }, b.targetSec) : c1, names = !ai && !keywords.length ? timeNames(fitted.props.chapters) : null;
+      const fitted = b.targetSec !== rule.targetSec ? curate({ ...base, pace: 1 }, b.targetSec) : c1, names = !ai && !keywords.length ? timeNames(fitted.props.chapters.map((c) => c.photos)) : null;
       const next: ElemProps = { ...fitted.props, theme: b.theme, kicker: d.kicker, title: d.title, outro: d.outro,
         school: b.school || (base.school === '새싹초등학교' ? '우리 학교' : base.school), klass: b.klass || (base.school === '새싹초등학교' ? '' : base.klass), place: b.place || (base.school === '새싹초등학교' ? '' : base.place),
         chapters: fitted.props.chapters.map((c, i) => ({ ...c, title: names ? names[i] : d.chapters[i]?.title || c.title, sub: d.chapters[i]?.sub || c.sub })),
