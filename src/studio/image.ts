@@ -101,3 +101,13 @@ export function photoQuality(src: HTMLCanvasElement): number {
     return +(0.7 * sharp + 0.3 * expo).toFixed(3);
   } catch { return 0.5; }
 }
+
+/** 비슷한 사진(연사·같은 장면) 찾기용 dHash: 9×8 회색 이미지에서 이웃 픽셀 밝기 비교 → 64비트(16자리 16진수) */
+export function photoHash(src: HTMLCanvasElement): string {
+  try {
+    const c = document.createElement('canvas'); c.width = 9; c.height = 8; const x = c.getContext('2d', { willReadFrequently: true })!; x.drawImage(src, 0, 0, 9, 8);
+    const d = x.getImageData(0, 0, 9, 8).data, g = (i: number, j: number) => 0.299 * d[(j * 9 + i) * 4] + 0.587 * d[(j * 9 + i) * 4 + 1] + 0.114 * d[(j * 9 + i) * 4 + 2];
+    let bits = ''; for (let j = 0; j < 8; j++) for (let i = 0; i < 8; i++) bits += g(i, j) < g(i + 1, j) ? '1' : '0';
+    let hex = ''; for (let k = 0; k < 64; k += 4) hex += parseInt(bits.slice(k, k + 4), 2).toString(16); return hex;
+  } catch { return ''; }
+}

@@ -1,6 +1,6 @@
 import exifr from 'exifr';
 import type { PhotoSpec } from '../analysis/videoData.ts';
-import { ImportError, borderCrop, decodeImage, photoQuality } from './image.ts';
+import { ImportError, borderCrop, decodeImage, photoHash, photoQuality } from './image.ts';
 import { uploadBlob } from './uploads.ts';
 
 export type Path = (string | number)[];
@@ -16,11 +16,11 @@ export async function importPhoto(file: File, chip: 'time' | 'date' | 'none', in
   try { const ex = await exifr.parse(file, { pick: ['DateTimeOriginal', 'CreateDate'] } as any); const d = ex?.DateTimeOriginal ?? ex?.CreateDate; if (d instanceof Date && !isNaN(+d)) when = d; } catch { /* EXIF 없음 */ }
   const cr = borderCrop(bmp); // 사진에 이미 들어 있는 단색 테두리는 잘라낸다
   const k = Math.min(1, 2560 / Math.max(cr.sw, cr.sh)), c = document.createElement('canvas'); c.width = Math.round(cr.sw * k); c.height = Math.round(cr.sh * k);
-  c.getContext('2d')!.drawImage(bmp, cr.sx, cr.sy, cr.sw, cr.sh, 0, 0, c.width, c.height); const aspect = +(c.width / c.height).toFixed(3), q = photoQuality(c); bmp.close();
+  c.getContext('2d')!.drawImage(bmp, cr.sx, cr.sy, cr.sw, cr.sh, 0, 0, c.width, c.height); const aspect = +(c.width / c.height).toFixed(3), q = photoQuality(c), h = photoHash(c); bmp.close();
   const blob: Blob = await new Promise((r, no) => c.toBlob((b) => (b ? r(b) : no(new ImportError('사진을 JPEG로 변환하지 못했습니다.'))), 'image/jpeg', 0.9));
   const src = (await uploadBlob(blob)) ?? URL.createObjectURL(blob); // 서버 저장 실패 시 미리보기 전용 주소
   const time = when ? `${z2(when.getHours())}:${z2(when.getMinutes())}` : '', date = when ? `${when.getFullYear()}.${z2(when.getMonth() + 1)}.${z2(when.getDate())}` : '';
-  return { src, aspect, time, date, wd: when ? WD[when.getDay()] : '', hex: '#888888', exif: '', model: '', fy: aspect < 0.9 ? 0.36 : 0.45, fx: 0.5, cap: { chip: chip === 'time' ? time : chip === 'date' ? date : '', title: '', sub: '' }, q, ts: when ? +when : undefined };
+  return { src, aspect, time, date, wd: when ? WD[when.getDay()] : '', hex: '#888888', exif: '', model: '', fy: aspect < 0.9 ? 0.36 : 0.45, fx: 0.5, cap: { chip: chip === 'time' ? time : chip === 'date' ? date : '', title: '', sub: '' }, q, h, ts: when ? +when : undefined };
 }
 export type ImportResult = { photos: PhotoSpec[]; failed: string[]; errors: { name: string; reason: string }[]; warnings: string[] };
 export async function importPhotos(files: File[], chip: 'time' | 'date' | 'none', onStep?: (done: number, total: number) => void): Promise<ImportResult> {
@@ -100,7 +100,7 @@ export function assignByGaps(props: any, photos: PhotoSpec[]): { props: any; msg
   }
   if (groups.length === 1 && sorted.length >= 6) { const r = assignEvenly(props, photos); return { props: clearSampleFacts(r.props, photos), msg: r.msg + ' (시각 간격이 고르지 않아 장수로 나눔)' }; }
   const range = (g: PhotoSpec[]) => { const t = g.map((x) => x.time).filter(Boolean).sort(); return t.length ? (t[0] === t[t.length - 1] ? t[0] : `${t[0]} – ${t[t.length - 1]}`) : ''; };
-  const chapters = groups.map((g, i) => { const base = props.chapters[i] ?? props.chapters[props.chapters.length - 1], title = `활동 ${i + 1}`, sub = range(g); return { ...base, title, sub, quote: undefined, photos: withTitle(g, title, sub) }; });
+  const chapters = groups.map((g, i) => { const base = props.chapters[i] ?? props.chapters[props.chapters.length - 1], title = `활동 ${i + 1}`, sub = range(g); return { ...base, title, sub, quote: undefined, photos: withTitle(g, '', '') }; }); // 사진 자막은 비워 둔다(활동 이름이 자막으로 반복되지 않게)
   const r = clearSampleFacts({ ...props, chapters }, photos);
   return finishAssign({ props: r, msg: `${sorted.length}장을 촬영 시각 간격으로 ${groups.length}개 활동으로 나눔 (20분 이상 쉰 곳이 경계)${props.school === '새싹초등학교' ? ' · 학교·학년반·장소는 샘플 값이니 고쳐 주세요' : ''}` }, photos);
 }

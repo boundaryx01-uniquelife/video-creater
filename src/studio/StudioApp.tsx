@@ -15,7 +15,7 @@ import { RenderPanel, UnsavedBar } from './RenderPanel';
 import { useFileDrop } from './dnd.ts';
 import './polish.css';
 import { Aspect, SIZES } from '../lib/layout';
-import { ElemAssist } from './ElemAssist';
+import { ElemMaker } from './ElemMaker';
 
 
 class Boundary extends React.Component<{ k: string; children: React.ReactNode }, { err: string | null }> {
@@ -84,9 +84,9 @@ export const StudioApp: React.FC = () => {
           </div>
           <div className={busy || note ? 'note' : 'sr-only'} role="status" aria-live="polite">{busy || note}</div>
           {stored !== 'ok' && <div className="note warn" role="alert">{STORE_MSG[stored]}</div>}
+          {mode.id === 'elem' && <ElemMaker props={props} setProps={setProps} setNote={setNote} setBusy={setBusy} aspect={aspect} setAspect={(a) => { player.current?.pause(); setAspect(a); }} undo={H.undo} />}
           <UnsavedBar props={props} server={server} onFixed={setProps} />
           {mode.note && <div className="note warn">{mode.note}</div>}
-          {mode.id === 'elem' && <ElemAssist props={props} setProps={setProps} setNote={setNote} />}
           {mode.id === 'grad' && <GradAuto props={props} setProps={setProps} setNote={setNote} />}
           <MusicPanel audio={props.audio} onChange={setAudio} busy={setBusy} licensed={licensed} setLicensed={setLicensed} />
           {mode.id === 'travel' && <TravelPanel props={props} setProps={setProps} server={server} />}

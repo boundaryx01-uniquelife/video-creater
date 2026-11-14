@@ -19,6 +19,8 @@ export type ElemProps = {
   chapters: ElemChapter[];
   stats?: { label: string; n: number; unit: string }[];
   outro: { title: string; message: string };
+  pace?: number;           // 장면 길이 배율(0.7 빠르게 ~ 1.5 천천히, 기본 1)
+  theme?: string;          // 색 테마 이름(THEMES 참고, 기본 sunny)
   audio?: AudioSpec;
 };
 
@@ -31,6 +33,18 @@ export type ElemScene =
   | { type: 'outro'; from: number; dur: number };
 
 export const E = { intro: 135, title: 66, single: 78, pair: 90, trio: 102, quote: 96, stats: 108, outro: 140 };
+
+/** 색 테마: 같은 디자인에서 색만 바뀐다. pal은 활동(챕터)마다 돌아가며 쓰는 색 */
+export type ElemTheme = { name: string; label: string; pal: string[]; paper: string; sun: string; ink: string };
+export const THEMES: Record<string, ElemTheme> = {
+  sunny: { name: 'sunny', label: '해님(노랑·코랄)', pal: ['#ff6b57', '#1fb58a', '#3d9bff', '#8f6bff', '#ff9f1c'], paper: '#fff5e1', sun: '#ffcf4a', ink: '#2a2440' },
+  mint: { name: 'mint', label: '새싹(초록·민트)', pal: ['#1fb58a', '#3d9bff', '#ff8a5b', '#8f6bff', '#e9b30c'], paper: '#f1f8e9', sun: '#b9e769', ink: '#1f3a2e' },
+  sky: { name: 'sky', label: '하늘(파랑)', pal: ['#3d9bff', '#1fb58a', '#ff6b57', '#8f6bff', '#ff9f1c'], paper: '#eef6ff', sun: '#8fd3ff', ink: '#1d2b4d' },
+  berry: { name: 'berry', label: '딸기(분홍·보라)', pal: ['#ff5d8f', '#8f6bff', '#ff9f1c', '#1fb58a', '#3d9bff'], paper: '#fff0f3', sun: '#ffc2d4', ink: '#3a1f3d' },
+  autumn: { name: 'autumn', label: '단풍(주황·갈색)', pal: ['#e8662b', '#c98b13', '#2b8a6e', '#b5485f', '#5b6ee1'], paper: '#fff3e0', sun: '#ffc46b', ink: '#3b2a1c' },
+};
+export const themeOf = (p: { theme?: string }) => THEMES[p.theme ?? ''] ?? THEMES.sunny;
+export const clampPace = (v: unknown) => Math.max(0.7, Math.min(1.5, Number(v) || 1));
 
 /** 사진을 한 화면(한 장·두 장·세 장)씩 묶는다: 세로 사진 둘은 짝으로, 4번째 화면마다 3장 콜라주, 그 밖에는 변화를 주려고 가끔 2장 */
 export function pagesOf(photos: PhotoSpec[]): number[][] {
@@ -47,8 +61,8 @@ export function pagesOf(photos: PhotoSpec[]): number[][] {
 }
 
 export function planElem(p: ElemProps): { scenes: ElemScene[]; total: number } {
-  const scenes: ElemScene[] = []; let t = 0;
-  const add = (s: ElemScene) => { scenes.push(s); t += s.dur; };
+  const scenes: ElemScene[] = []; let t = 0, k = clampPace(p.pace);
+  const add = (s: ElemScene) => { s = { ...s, dur: Math.max(24, Math.round(s.dur * k)) } as ElemScene; scenes.push(s); t += s.dur; };
   add({ type: 'intro', from: t, dur: E.intro });
   p.chapters.forEach((c, ci) => {
     add({ type: 'title', from: t, dur: E.title, ci });
