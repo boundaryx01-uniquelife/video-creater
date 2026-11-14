@@ -19,6 +19,7 @@ export type ElemProps = {
   chapters: ElemChapter[];
   stats?: { label: string; n: number; unit: string }[];
   outro: { title: string; message: string };
+  outroPhotos?: string[];  // 마무리 장면에 놓을 사진(최대 3장). 없으면 처음·가운데·마지막 사진
   pace?: number;           // 장면 길이 배율(0.7 빠르게 ~ 1.5 천천히, 기본 1)
   theme?: string;          // 색 테마 이름(THEMES 참고, 기본 sunny)
   audio?: AudioSpec;

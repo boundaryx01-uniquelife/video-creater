@@ -56,7 +56,7 @@ const Intro: React.FC<{ p: ElemProps }> = ({ p }) => {
   const f = useCurrentFrame(), { W, H, portrait, PAD } = useLayout();
   const all = p.chapters.flatMap((c) => c.photos), pick = (i: number): PhotoSpec => { const s = p.introPhotos[i]; return all.find((x) => x.src === s) ?? (s ? { src: s, aspect: 1.5, fx: 0.5, fy: 0.4 } as PhotoSpec : all[i] ?? all[0]); };
   const ph = [pick(0), pick(1), pick(2)].filter(Boolean), ls = lines(p.title), big = portrait ? 200 : 210;
-  const sz = (t: string) => fitFont(t, big, (portrait ? W - PAD * 2 : W * 0.5), 0.95);
+  const sz = (t: string) => fitFont(t, big, (portrait ? W - PAD * 2 : W * 0.4), 0.95); // 가로에서는 오른쪽 사진과 닿지 않게 여백을 둔다
   const hl = prog(f, 26, 20);
   const info = [p.klass ? `${p.school} ${p.klass}` : p.school, p.day, p.place].filter(Boolean);
   return (
@@ -181,8 +181,8 @@ const Page: React.FC<{ p: ElemProps; ci: number; idx: number[]; no: number; of: 
       const A = fit(x.aspect, W * 0.8, H * 0.27), B = fit(y.aspect, W * 0.38, H * 0.2), C = fit(z.aspect, W * 0.38, H * 0.2);
       body = <>
         <Polaroid ph={x} {...A} rot={-2.5} f={f} delay={6} cap={cap(x)} style={{ left: (W - A.iw * 1.08) / 2, top: H * 0.13 }} tape={`${col}cc`} />
-        <Polaroid ph={y} {...B} rot={4} f={f} delay={16} style={{ left: PAD * 0.9, top: H * 0.58 }} tape="rgba(255,207,74,.9)" />
-        <Polaroid ph={z} {...C} rot={-4} f={f} delay={24} style={{ right: PAD * 0.9, top: H * 0.64 }} tape="rgba(61,155,255,.8)" />
+        <Polaroid ph={y} {...B} rot={4} f={f} delay={16} cap={cap(y)} style={{ left: PAD * 0.9, top: H * 0.58 }} tape="rgba(255,207,74,.9)" />
+        <Polaroid ph={z} {...C} rot={-4} f={f} delay={24} cap={cap(z)} style={{ right: PAD * 0.9, top: H * 0.64 }} tape="rgba(61,155,255,.8)" />
       </>;
     }
   }
@@ -237,7 +237,8 @@ const Stats: React.FC<{ p: ElemProps }> = ({ p }) => {
 const Outro: React.FC<{ p: ElemProps }> = ({ p }) => {
   const T = useT();
   const f = useCurrentFrame(), { W, H, portrait, PAD } = useLayout(), all = p.chapters.flatMap((c) => c.photos);
-  const pick = [0, Math.floor(all.length / 2), all.length - 1].map((i) => all[i]).filter(Boolean);
+  const chosen = (p.outroPhotos ?? []).map((src) => all.find((x) => x.src === src)).filter(Boolean) as PhotoSpec[];
+  const pick = chosen.length ? chosen.slice(0, 3) : [0, Math.floor(all.length / 2), all.length - 1].map((i) => all[i]).filter(Boolean);
   const ls = lines(p.outro.title), fs = Math.min(...ls.map((t) => fitFont(t, portrait ? 190 : 170, portrait ? W - PAD * 2 : W * 0.52 - PAD, 0.98)));
   return (
     <AbsoluteFill style={{ background: T.sun }}>

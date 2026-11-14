@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 import exifr from 'exifr';
 import type { PhotoSpec } from '../../src/analysis/videoData.ts';
-import { THEMES, planElem, clampPace, type ElemProps } from '../../src/elem/types.ts';
+import { THEMES, pagesOf, planElem, clampPace, type ElemProps } from '../../src/elem/types.ts';
 import { curate, hamming, secondsOf } from '../../src/elem/curate.ts';
 import { parseGoal } from '../../src/elem/rules.ts';
 import { rangeOf, splitByGaps, timeNames } from '../../src/elem/arrange.ts';
@@ -24,12 +24,12 @@ const chars = (s: string) => [...s].length;
 type Lib = { id: number; file: string; name: string; time: string; date: string; wd: string; ts: number | null; aspect: number; w: number; h: number; q: number; hash: string; dupOf: number | null; blurry: boolean };
 export type Spec = {
   goal?: string; school: string; klass: string; kicker: string; title: string; day: string; place: string;
-  theme: string; aspect: '16:9' | '9:16'; targetSec: number; pace?: number;
+  theme: string; aspect: '16:9' | '9:16'; targetSec: number; pace?: number | 'auto';
   intro: number[];
   chapters: { title: string; sub: string; photos: number[]; captions?: Record<string, string>; quote?: { text: string; name: string } | null }[];
   focus?: Record<string, [number, number]>;
   stats?: boolean | { label: string; n: number; unit: string }[];
-  outro: { title: string; message: string };
+  outro: { title: string; message: string; photos?: number[] };
   parentNote?: string;
 };
 
@@ -101,8 +101,11 @@ async function ingest() {
   let groups = splitByGaps(photos); if (!groups) { const n = Math.min(4, Math.max(1, Math.round(photos.length / 8))), per2 = Math.ceil(photos.length / n); groups = Array.from({ length: n }, (_, i) => photos.slice(i * per2, (i + 1) * per2)).filter((g) => g.length); }
   const names = timeNames(groups), first = lib.find((p) => p.date);
   const base: ElemProps = { school: brief.school, klass: brief.klass, kicker: first ? first.date.slice(0, 4) : '', title: '', day: first ? `${first.date} (${first.wd})` : '', place: '', introPhotos: [], chapters: groups.map((g, i) => ({ title: names[i], sub: rangeOf(g), photos: g })), outro: { title: '오늘도\n수고했어요!', message: '함께해 주셔서 감사합니다.' } };
-  const cur = curate(base, brief.targetSec).props, heroes = cur.chapters.map((c) => [...c.photos].filter((p) => p.aspect >= 1.2).sort((a, b) => (b.q ?? 0) - (a.q ?? 0))[0] ?? c.photos[0]).slice(0, 3);
-  const spec: Spec = { goal: opt('goal'), school: brief.school, klass: brief.klass, kicker: base.kicker, title: '', day: base.day, place: '', theme: brief.theme, aspect: brief.aspect, targetSec: brief.targetSec, pace: cur.pace ?? 1,
+  const cur = curate(base, brief.targetSec).props, qd = (a: PhotoSpec, b: PhotoSpec) => (b.q ?? 0) - (a.q ?? 0), kept = cur.chapters.flatMap((c) => c.photos);
+  const wideOf = (c: ElemProps['chapters'][number]) => [...c.photos].filter((p) => p.aspect >= 1.2).sort(qd)[0], tall = [...kept].filter((p) => p.aspect < 1).sort(qd)[0];
+  // 인트로 3장: 첫 활동의 가로 사진(가장 크게) + 세로 사진 + 마지막 활동의 가로 사진. 모자라면 품질순으로 채운다
+  const heroes = [...new Set([wideOf(cur.chapters[0]), tall, wideOf(cur.chapters[cur.chapters.length - 1]), ...[...kept].sort(qd)].filter(Boolean))].slice(0, 3);
+  const spec: Spec = { goal: opt('goal'), school: brief.school, klass: brief.klass, kicker: base.kicker, title: '', day: base.day, place: '', theme: brief.theme, aspect: brief.aspect, targetSec: brief.targetSec, pace: 'auto',
     intro: heroes.map((p) => idOf.get(p.src)!), chapters: cur.chapters.map((c) => ({ title: c.title, sub: c.sub, photos: c.photos.map((p) => idOf.get(p.src)!), captions: {}, quote: null })), focus: {}, stats: true, outro: base.outro, parentNote: '' };
   const specFile = path.join(out, 'spec.json'); if (fs.existsSync(specFile) && !flag('force')) console.error('  spec.json 이 이미 있어 그대로 둡니다(새로 만들려면 --force). 초안은 spec.draft.json 에 씁니다.');
   fs.writeFileSync(fs.existsSync(specFile) && !flag('force') ? path.join(out, 'spec.draft.json') : specFile, JSON.stringify(spec, null, 1));
@@ -134,22 +137,30 @@ function build(quiet = false): { props: ElemProps; spec: Spec; dir: string; warn
     return { title: cut(c.title, 14, `${where} 이름`) || `활동 ${i + 1}`, sub: cut(c.sub, 24, `${where} 부제`), photos: ph, quote: q };
   });
   for (const [id, n] of used) if (n > 1) warn.push(`사진 #${id} 이(가) ${n}번 쓰였습니다.`);
+  const auto = spec.pace === undefined || spec.pace === 'auto' || flag('fit');
+  for (const id of spec.intro ?? []) if (!used.has(Number(id))) warn.push(`인트로 사진 #${id} 은(는) 어느 활동에도 없는 사진입니다(의도한 것이 아니면 고치세요).`);
+  for (const id of spec.outro?.photos ?? []) if (!used.has(Number(id))) warn.push(`마무리 사진 #${id} 은(는) 어느 활동에도 없는 사진입니다(의도한 것이 아니면 고치세요).`);
+  if ((spec.intro ?? []).length > 3) warn.push('인트로 사진은 3장까지만 쓰입니다.'); if ((spec.outro?.photos ?? []).length > 3) warn.push('마무리 사진은 3장까지만 쓰입니다.');
   const intro = (spec.intro ?? []).slice(0, 3).map((id) => photo(id, '인트로')).filter(Boolean) as PhotoSpec[];
   if (err.length) die('spec.json 을 고쳐야 합니다:\n  - ' + err.join('\n  - '));
   const total = chapters.reduce((a, c) => a + c.photos.length, 0);
   let props: ElemProps = { school: cut(spec.school, 20, '학교') || '우리 학교', klass: cut(spec.klass, 12, '학년·반'), kicker: cut(spec.kicker, 14, '상단 문구'), title: lines(spec.title, 2, 14, '제목'), day: cut(spec.day, 20, '날짜'), place: cut(spec.place, 16, '장소'),
     introPhotos: (intro.length ? intro : chapters.map((c) => c.photos[0]).slice(0, 3)).map((p) => p.src), chapters,
     stats: Array.isArray(spec.stats) ? spec.stats.slice(0, 4).map((x) => ({ label: cut(x.label, 10, '숫자 라벨'), n: Number(x.n) || 0, unit: cut(x.unit, 3, '단위') })) : spec.stats === false ? [] : [{ label: '남긴 사진', n: total, unit: '장' }, { label: '함께한 활동', n: chapters.length, unit: '가지' }],
-    outro: { title: lines(spec.outro?.title, 2, 10, '마무리 큰 글') || '오늘도\n수고했어요!', message: lines(spec.outro?.message, 3, 36, '마무리 인사') }, pace: clampPace(spec.pace), theme: spec.theme };
-  // 길이 맞추기: 고른 사진은 건드리지 않고 장면 속도만(0.7~1.5배) 조정한다
+    outro: { title: lines(spec.outro?.title, 2, 10, '마무리 큰 글') || '오늘도\n수고했어요!', message: lines(spec.outro?.message, 3, 36, '마무리 인사') },
+    outroPhotos: (spec.outro?.photos ?? []).slice(0, 3).map((id) => photo(id, '마무리')).filter(Boolean).map((x) => x!.src), pace: auto ? 1 : clampPace(spec.pace), theme: spec.theme };
+  if (err.length) die('spec.json 을 고쳐야 합니다:\n  - ' + err.join('\n  - '));
+  // 길이 맞추기: pace 가 "auto"(기본)면 고른 사진은 그대로 두고 장면 속도만(0.7~1.5배) 조정한다. 숫자면 그 값을 그대로 쓴다
   const target = Math.max(20, Math.min(180, Number(spec.targetSec) || 60));
-  if (flag('fit')) { const natural = secondsOf({ ...props, pace: 1 }); props = { ...props, pace: +clampPace(target / natural).toFixed(2) }; fs.writeFileSync(path.join(dir, 'spec.json'), JSON.stringify({ ...spec, pace: props.pace }, null, 1)); } // 맞춘 속도는 spec.json 에 적어 둔다
+  if (auto) props = { ...props, pace: +clampPace(target / secondsOf({ ...props, pace: 1 })).toFixed(2) };
   const sec = secondsOf(props);
-  if (Math.abs(sec - target) > target * 0.12) warn.push(`길이 ${sec.toFixed(0)}초가 목표 ${target}초와 12% 넘게 다릅니다 → 사진 수를 ${sec > target ? '줄이거나' : '늘리거나'} --fit(속도 조정)을 쓰세요. 지금 속도 ${props.pace}배(범위 0.7~1.5).`);
+  if (Math.abs(sec - target) > target * 0.12) warn.push(`길이 ${sec.toFixed(0)}초가 목표 ${target}초와 12% 넘게 다릅니다(속도 ${props.pace}배, 범위 0.7~1.5) → 사진을 약 ${Math.max(1, Math.round(Math.abs(sec - target) / (1.9 * (props.pace ?? 1))))}장 ${sec > target ? '줄이세요' : '늘리세요'}.`);
+  else if (auto && ((props.pace ?? 1) < 0.8 || (props.pace ?? 1) > 1.3)) warn.push(`길이는 맞췄지만 속도가 ${props.pace}배로 ${(props.pace ?? 1) < 1 ? '빠릅니다' : '느립니다'} → 사진 수를 ${(props.pace ?? 1) < 1 ? '줄이는' : '늘리는'} 편이 보기 좋습니다.`);
   fs.writeFileSync(path.join(dir, 'video.json'), JSON.stringify(props));
   if (!quiet) {
     console.log(`구성 완료: ${sec.toFixed(1)}초 (목표 ${target}초, 속도 ${props.pace}배) · ${spec.aspect === '9:16' ? '세로 9:16' : '가로 16:9'} · 색 ${props.theme} · 사진 ${total}/${lib.length}장 사용`);
-    chapters.forEach((c, i) => console.log(`  ${i + 1}. ${c.title} (${c.sub || '-'}) — ${c.photos.length}장: ${spec.chapters[i].photos.map((id) => '#' + id).join(' ')}${c.quote ? ' + 한마디' : ''}`));
+    // 사진은 한 화면에 1~3장씩 묶여 나온다. 대괄호 하나가 한 화면이고, 한 장짜리 화면의 자막이 가장 크게 보인다
+    chapters.forEach((c, i) => { const ids = spec.chapters[i].photos; console.log(`  ${i + 1}. ${c.title} (${c.sub || '-'}) — ${c.photos.length}장, 화면 묶음: ${pagesOf(c.photos).map((g) => '[' + g.map((k) => '#' + ids[k]).join(' ') + ']').join(' ')}${c.quote ? ' + 한마디' : ''}`); });
     if (warn.length) console.log('주의:\n  - ' + warn.join('\n  - '));
   }
   return { props, spec, dir, warn };
@@ -169,22 +180,27 @@ async function engine(dir: string) {
   const server = http.createServer((req, res) => { const f = path.join(media, path.basename(decodeURIComponent((req.url ?? '').split('?')[0]))); if (!f.startsWith(media) || !fs.existsSync(f)) { res.statusCode = 404; return res.end(); } res.setHeader('content-type', 'image/jpeg'); res.setHeader('access-control-allow-origin', '*'); fs.createReadStream(f).pipe(res); });
   await new Promise<void>((ok) => server.listen(0, '127.0.0.1', ok)); const port = (server.address() as any).port;
   const abs = (p: ElemProps): ElemProps => JSON.parse(JSON.stringify(p).replaceAll('"media/', `"http://127.0.0.1:${port}/`));
-  return { R, serveUrl: cache, abs, close: () => server.close(), browserExecutable: process.env.CHROME_BIN || undefined };
+  return { R, serveUrl: cache, abs, close: () => server.close(), browserExecutable: process.env.CHROME_BIN || undefined, logLevel: 'error' as const };
 }
 
 async function stills() {
   const { props, spec, dir } = build(true), E = await engine(dir), inputProps = E.abs(props) as any;
   try {
-    const id = 'elem-video-sample' + (spec.aspect === '9:16' ? '-vertical' : ''), comp = await E.R.selectComposition({ serveUrl: E.serveUrl, id, inputProps, browserExecutable: E.browserExecutable });
+    const id = 'elem-video-sample' + (spec.aspect === '9:16' ? '-vertical' : ''), comp = await E.R.selectComposition({ serveUrl: E.serveUrl, id, inputProps, browserExecutable: E.browserExecutable, logLevel: E.logLevel });
     const { scenes } = planElem(props), KO: Record<string, string> = { intro: '인트로', title: '활동 제목', page: '사진', quote: '한마디', stats: '기록', outro: '마무리' };
+    if (opt('scene')) { // 한 장면만 크게 보기
+      const n = Number(opt('scene')), s1 = scenes[n - 1]; if (!s1) die(`장면 번호는 1–${scenes.length} 입니다.`);
+      const f1 = path.join(dir, `scene-${n}.jpg`); await E.R.renderStill({ composition: comp, serveUrl: E.serveUrl, frame: Math.min(comp.durationInFrames - 1, s1.from + Math.min(s1.dur - 2, 50)), output: f1, inputProps, imageFormat: 'jpeg', jpegQuality: 88, scale: 960 / Math.max(comp.width, comp.height), browserExecutable: E.browserExecutable, logLevel: E.logLevel });
+      console.log(`장면 ${n}: ${f1}`); return;
+    }
     const vert = spec.aspect === '9:16', tw = vert ? 270 : 480, th = vert ? 480 : 270, LB = 34, cols = vert ? 6 : 4, tmp = path.join(dir, '.stills'); fs.rmSync(tmp, { recursive: true, force: true }); fs.mkdirSync(tmp, { recursive: true });
     const comps: sharp.OverlayOptions[] = [];
     for (const [k, s] of scenes.entries()) {
-      const f = path.join(tmp, `${z(k)}.jpg`); await E.R.renderStill({ composition: comp, serveUrl: E.serveUrl, frame: Math.min(comp.durationInFrames - 1, s.from + Math.min(s.dur - 2, 50)), output: f, inputProps, imageFormat: 'jpeg', jpegQuality: 80, scale: tw / comp.width, browserExecutable: E.browserExecutable });
-      const x = (k % cols) * tw, y = Math.floor(k / cols) * (th + LB), label = `${k + 1}. ${KO[s.type]}${'ci' in s ? ' ' + (s.ci + 1) : ''} · ${(s.from / 30).toFixed(0)}초`;
+      const f = path.join(tmp, `${z(k)}.jpg`); await E.R.renderStill({ composition: comp, serveUrl: E.serveUrl, frame: Math.min(comp.durationInFrames - 1, s.from + Math.min(s.dur - 2, 50)), output: f, inputProps, imageFormat: 'jpeg', jpegQuality: 80, scale: tw / comp.width, browserExecutable: E.browserExecutable, logLevel: E.logLevel });
+      const x = (k % cols) * tw, y = Math.floor(k / cols) * (th + LB), label = `${k + 1}. ${KO[s.type]}${'ci' in s ? ' ' + (s.ci + 1) : ''} · ${(s.from / 30).toFixed(0)}–${((s.from + s.dur) / 30).toFixed(0)}초`;
       comps.push({ input: f, left: x, top: y }, { input: Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${tw}" height="${LB}"><rect width="100%" height="100%" fill="#14161c"/><text x="8" y="23" font-family="sans-serif" font-size="18" fill="#e8e2d3">${esc(label)}</text></svg>`), left: x, top: y + th });
     }
-    const rows = Math.ceil(scenes.length / cols), outFile = path.join(dir, 'preview.jpg');
+    const rows = Math.ceil(scenes.length / cols), outFile = path.join(dir, vert ? 'preview-vertical.jpg' : 'preview.jpg');
     await sharp({ create: { width: cols * tw, height: rows * (th + LB), channels: 3, background: '#0e0f12' } }).composite(comps).jpeg({ quality: 84 }).toFile(outFile); fs.rmSync(tmp, { recursive: true, force: true });
     console.log(`미리보기: ${outFile} (장면 ${scenes.length}개, ${secondsOf(props).toFixed(1)}초) — 글자가 넘치거나 사진이 이상하게 잘린 곳이 없는지 확인하세요.`);
   } finally { E.close(); }
@@ -193,9 +209,9 @@ async function stills() {
 async function render() {
   const { props, spec, dir, warn } = build(true), E = await engine(dir), inputProps = E.abs(props) as any;
   try {
-    const id = 'elem-video-sample' + (spec.aspect === '9:16' ? '-vertical' : ''), comp = await E.R.selectComposition({ serveUrl: E.serveUrl, id, inputProps, browserExecutable: E.browserExecutable });
-    const q = opt('quality', '720') === '1080' ? '1080' : '720', outFile = path.resolve(opt('output') || path.join(dir, 'video.mp4')); let last = -1;
-    await E.R.renderMedia({ composition: comp, serveUrl: E.serveUrl, codec: 'h264', outputLocation: outFile, inputProps, browserExecutable: E.browserExecutable, chromiumOptions: { gl: 'angle' }, crf: 20, scale: q === '720' ? 2 / 3 : 1,
+    const id = 'elem-video-sample' + (spec.aspect === '9:16' ? '-vertical' : ''), comp = await E.R.selectComposition({ serveUrl: E.serveUrl, id, inputProps, browserExecutable: E.browserExecutable, logLevel: E.logLevel });
+    const q = opt('quality', '720') === '1080' ? '1080' : '720', outFile = path.resolve(opt('output') || path.join(dir, spec.aspect === '9:16' ? 'video-vertical.mp4' : 'video.mp4')); let last = -1;
+    await E.R.renderMedia({ composition: comp, serveUrl: E.serveUrl, codec: 'h264', outputLocation: outFile, inputProps, browserExecutable: E.browserExecutable, chromiumOptions: { gl: 'angle' }, logLevel: E.logLevel, crf: 20, scale: q === '720' ? 2 / 3 : 1,
       onProgress: ({ progress }) => { const p = Math.floor(progress * 10); if (p !== last) { last = p; console.error(`  렌더 ${p * 10}%`); } } });
     console.log(`완성: ${outFile} · ${(comp.durationInFrames / 30).toFixed(1)}초 · ${spec.aspect === '9:16' ? (q === '720' ? '720×1280' : '1080×1920') : q === '720' ? '1280×720' : '1920×1080'} · ${(fs.statSync(outFile).size / 1e6).toFixed(1)}MB`);
     if (warn.length) console.log('주의:\n  - ' + warn.join('\n  - '));
@@ -206,4 +222,4 @@ function status() { const { props, spec, dir } = build(true); const lib: Lib[] =
   console.log(JSON.stringify({ seconds: +secondsOf(props).toFixed(1), targetSec: spec.targetSec, aspect: spec.aspect, theme: props.theme, pace: props.pace, title: props.title, chapters: spec.chapters.map((c) => ({ title: c.title, sub: c.sub, photos: c.photos, captions: c.captions ?? {}, quote: c.quote ?? null })), unused: lib.filter((p) => !used.has(p.id)).map((p) => p.id), themes: Object.keys(THEMES) }, null, 1)); }
 
 if (cmd === 'ingest') await ingest(); else if (cmd === 'build') build(); else if (cmd === 'stills') await stills(); else if (cmd === 'render') await render(); else if (cmd === 'status') status();
-else { console.log('사용: cli.ts ingest <사진 폴더> --out <작업 폴더> [--goal "목적 문장"] [--force]\n      cli.ts build <작업 폴더> [--fit]\n      cli.ts stills <작업 폴더>\n      cli.ts render <작업 폴더> [--quality 720|1080] [--output 파일.mp4]\n      cli.ts status <작업 폴더>'); process.exit(cmd ? 1 : 0); }
+else { console.log('사용: cli.ts ingest <사진 폴더> --out <작업 폴더> [--goal "목적 문장"] [--force]\n      cli.ts build <작업 폴더>\n      cli.ts stills <작업 폴더> [--scene 번호]\n      cli.ts render <작업 폴더> [--quality 720|1080] [--output 파일.mp4]\n      cli.ts status <작업 폴더>'); process.exit(cmd ? 1 : 0); }
