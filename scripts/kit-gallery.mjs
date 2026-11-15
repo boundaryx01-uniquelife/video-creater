@@ -15,7 +15,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
 const opt = (k, d = '') => { const i = args.indexOf('--' + k); return i >= 0 && args[i + 1] !== undefined ? args[i + 1] : d; };
 const list = (s) => s.split(',').map((x) => x.trim()).filter(Boolean);
-const families = list(opt('families', 'scrapbook,editorial,documentary'));
+const families = list(opt('families', 'scrapbook,editorial,documentary,lyric'));
 const parts = opt('parts') ? list(opt('parts')) : PART_IDS;
 const out = path.resolve(opt('out', 'gallery'));
 const ORIENT = [{ key: 'h', id: 'kit-part' }, { key: 'v', id: 'kit-part-vertical' }];
