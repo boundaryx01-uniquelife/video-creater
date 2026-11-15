@@ -150,7 +150,7 @@ export function studio(opts = {}) {
           if (p === '/api/render' && req.method === 'POST') {
             if (queue.length >= MAX_QUEUE) return send(res, 429, { error: `대기열이 가득 찼습니다(최대 ${MAX_QUEUE}개)` });
             const j = JSON.parse((await body(req, 30e6)).toString('utf8')); if (!COMPS.has(j.comp)) return send(res, 400, { error: '알 수 없는 영상 종류' });
-            if (j.props?.audio?.src && j.audioLicensed !== true) return send(res, 400, { error: '음원 사용 권한을 확인해야 음악이 든 MP4를 만들 수 있습니다' });
+            if (j.props?.audio?.src && !/^\/?music\/(lively|warm|calm)\.mp3$/.test(j.props.audio.src) && j.audioLicensed !== true) return send(res, 400, { error: '음원 사용 권한을 확인해야 음악이 든 MP4를 만들 수 있습니다' });
             const id = crypto.randomBytes(6).toString('hex'), job = { id, comp: j.comp, name: String(j.name || j.comp).slice(0, 80), props: j.props, scale: j.scale === '1080' ? '1080' : '720', seconds: Number(j.seconds) || 0, status: 'queued', stage: '대기 중', progress: 0, createdAt: Date.now(), log: [] };
             jobs.set(id, job); queue.push(id); log(job, '대기열에 추가'); pump(); return send(res, 200, { id });
           }

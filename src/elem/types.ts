@@ -25,15 +25,21 @@ export type ElemProps = {
   audio?: AudioSpec;
 };
 
+/** 사진 화면의 배치 종류 */
+export type Layout = 'single' | 'full' | 'pair' | 'stack' | 'trio' | 'grid' | 'strip';
+export const LAYOUT_KO: Record<Layout, string> = { single: '한 장+자막', full: '꽉 찬 한 장', pair: '두 장', stack: '두 장 겹치기', trio: '세 장', grid: '네 장 모자이크', strip: '필름 띠' };
+
 export type ElemScene =
   | { type: 'intro'; from: number; dur: number }
   | { type: 'title'; from: number; dur: number; ci: number }
-  | { type: 'page'; from: number; dur: number; ci: number; photos: number[] }  // 사진 번호(챕터 안)
+  | { type: 'page'; from: number; dur: number; ci: number; photos: number[]; layout: Layout }  // 사진 번호(챕터 안)
   | { type: 'quote'; from: number; dur: number; ci: number }
   | { type: 'stats'; from: number; dur: number }
   | { type: 'outro'; from: number; dur: number };
 
-export const E = { intro: 135, title: 66, single: 78, pair: 90, trio: 102, quote: 96, stats: 108, outro: 140 };
+export const E = { intro: 135, title: 66, quote: 96, stats: 108, outro: 140 };
+/** 배치별 화면 길이(프레임, 30fps). 띠는 사진 1장마다 길어진다 */
+export const PAGE_DUR: Record<Layout, (n: number) => number> = { single: () => 84, full: () => 84, pair: () => 90, stack: () => 96, trio: () => 102, grid: () => 108, strip: (n) => 96 + n * 12 };
 
 /** 색 테마: 같은 디자인에서 색만 바뀐다. pal은 활동(챕터)마다 돌아가며 쓰는 색 */
 export type ElemTheme = { name: string; label: string; pal: string[]; paper: string; sun: string; ink: string };
@@ -47,27 +53,45 @@ export const THEMES: Record<string, ElemTheme> = {
 export const themeOf = (p: { theme?: string }) => THEMES[p.theme ?? ''] ?? THEMES.sunny;
 export const clampPace = (v: unknown) => Math.max(0.7, Math.min(1.5, Number(v) || 1));
 
-/** 사진을 한 화면(한 장·두 장·세 장)씩 묶는다: 세로 사진 둘은 짝으로, 4번째 화면마다 3장 콜라주, 그 밖에는 변화를 주려고 가끔 2장 */
-export function pagesOf(photos: PhotoSpec[]): number[][] {
-  const out: number[][] = []; let i = 0, k = 0; const n = photos.length;
+/**
+ * 사진을 화면 단위로 묶고 배치를 고른다. 같은 배치가 연달아 나오지 않게 순서를 돌리되, 챕터마다 시작점을 달리해 챕터끼리도 다르게 보이게 한다.
+ * - 자막이 있는 사진은 크게 보이는 배치(한 장+자막 또는 꽉 찬 한 장)에 둔다
+ * - 세로 사진 둘이 이어지면 두 장 배치
+ * - 남은 장수가 모자라면 더 작은 배치로 바꾼다
+ */
+export type PageGroup = { idx: number[]; layout: Layout };
+const CYCLE: Layout[] = ['full', 'pair', 'single', 'strip', 'stack', 'trio', 'grid'];
+const NEED: Record<Layout, number> = { single: 1, full: 1, pair: 2, stack: 2, trio: 3, grid: 4, strip: 4 };
+export function pagesOf(photos: PhotoSpec[], ci = 0): PageGroup[] {
+  const out: PageGroup[] = []; const n = photos.length; let i = 0, k = (ci * 3) % CYCLE.length, prev: Layout | null = null;
+  const capd = (j: number) => !!photos[j]?.cap?.title, port = (j: number) => (photos[j]?.aspect ?? 1.5) < 1, wide = (j: number) => (photos[j]?.aspect ?? 1.5) >= 1.25;
   while (i < n) {
-    const port = (j: number) => photos[j].aspect < 1;
-    if (k % 4 === 3 && n - i >= 3) { out.push([i, i + 1, i + 2]); i += 3; }
-    else if (n - i >= 2 && port(i) && port(i + 1)) { out.push([i, i + 1]); i += 2; }
-    else if (n - i >= 2 && k % 3 === 1) { out.push([i, i + 1]); i += 2; }
-    else { out.push([i]); i += 1; }
-    k++;
+    const left = n - i; let lay: Layout;
+    if (capd(i)) lay = wide(i) && prev !== 'full' ? 'full' : 'single';
+    else if (left >= 2 && port(i) && port(i + 1) && !capd(i + 1)) lay = prev === 'pair' ? 'stack' : 'pair';
+    else {
+      lay = CYCLE[k % CYCLE.length]; k++;
+      let guard = 0;
+      while ((NEED[lay] > left || lay === prev || (lay === 'full' && !wide(i)) || (NEED[lay] > 1 && Array.from({ length: NEED[lay] - 1 }, (_, d) => capd(i + 1 + d)).some(Boolean))) && guard++ < CYCLE.length) { lay = CYCLE[k % CYCLE.length]; k++; }
+      if (NEED[lay] > left || (lay === 'full' && !wide(i))) lay = left >= 2 && !capd(i + 1) ? 'pair' : 'single';
+    }
+    let take = NEED[lay];
+    if (lay === 'strip') take = Math.min(left, 5, Math.max(4, left >= 7 ? 4 : left)); // 띠는 4–5장(남은 사진이 애매하면 한꺼번에)
+    out.push({ idx: Array.from({ length: take }, (_, d) => i + d), layout: lay }); i += take; prev = lay;
   }
   return out;
 }
 
 export function planElem(p: ElemProps): { scenes: ElemScene[]; total: number } {
-  const scenes: ElemScene[] = []; let t = 0, k = clampPace(p.pace);
-  const add = (s: ElemScene) => { s = { ...s, dur: Math.max(24, Math.round(s.dur * k)) } as ElemScene; scenes.push(s); t += s.dur; };
+  const scenes: ElemScene[] = []; let t = 0; const k = clampPace(p.pace);
+  // 음악에 박자 정보가 있으면 장면 길이를 박자의 배수로 맞춰 컷이 박자에 떨어지게 한다(음원은 0초에 첫 박이 오도록 만들어져 있어야 한다)
+  const beat = p.audio?.syncCuts && p.audio.bpm && p.audio.bpm >= 40 && p.audio.bpm <= 240 && !(p.audio.startFromSec || p.audio.beatOffsetSec) ? (30 * 60) / p.audio.bpm : 0;
+  const snap = (d: number) => { if (!beat) return d; const end = t + d, kk = Math.max(1, Math.round(end / beat)); return Math.max(Math.round(beat), Math.round(kk * beat) - t); };
+  const add = (s: ElemScene) => { const d = snap(Math.max(24, Math.round(s.dur * k))); s = { ...s, from: t, dur: d } as ElemScene; scenes.push(s); t += d; };
   add({ type: 'intro', from: t, dur: E.intro });
   p.chapters.forEach((c, ci) => {
     add({ type: 'title', from: t, dur: E.title, ci });
-    for (const g of pagesOf(c.photos)) add({ type: 'page', from: t, dur: g.length === 1 ? E.single : g.length === 2 ? E.pair : E.trio, ci, photos: g });
+    for (const g of pagesOf(c.photos, ci)) add({ type: 'page', from: t, dur: PAGE_DUR[g.layout](g.idx.length), ci, photos: g.idx, layout: g.layout });
     if (c.quote?.text) add({ type: 'quote', from: t, dur: E.quote, ci });
   });
   if (p.stats?.length) add({ type: 'stats', from: t, dur: E.stats });

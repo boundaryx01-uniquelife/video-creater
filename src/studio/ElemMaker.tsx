@@ -4,6 +4,8 @@ import { ACCEPT } from './image.ts';
 import { assignByGaps, importPhotos, importSummary } from './util.ts';
 import { curate, secondsOf } from '../elem/curate.ts';
 import { timeNames } from '../elem/arrange.ts';
+import { builtinAudio, type MusicName } from '../elem/music.ts';
+import { BUILTIN } from './MusicPanel';
 import { applyOps, stateSummary, type Op } from '../elem/ops.ts';
 import { parseEdit, parseGoal } from '../elem/rules.ts';
 import type { ElemProps } from '../elem/types.ts';
@@ -47,7 +49,8 @@ export const ElemMaker: React.FC<{ props: ElemProps; setProps: (p: any) => void;
       const r = await post('/api/ai/compose', { goal, brief: rule, keywords: keywords.join(', '), school: rule.school || (base.school === '새싹초등학교' ? '' : base.school), klass: rule.klass || (base.school === '새싹초등학교' ? '' : base.klass), day: base.day, place: base.school === '새싹초등학교' ? '' : base.place, chapters: summarize(c1.props.chapters) });
       const b = r.brief, d = r.draft, ai = r.source === 'ai';
       const fitted = b.targetSec !== rule.targetSec ? curate({ ...base, pace: 1 }, b.targetSec) : c1, names = !ai && !keywords.length ? timeNames(fitted.props.chapters.map((c) => c.photos)) : null;
-      const next: ElemProps = { ...fitted.props, theme: b.theme, kicker: d.kicker, title: d.title, outro: d.outro,
+      const tone = (b.tone === 'lively' || b.tone === 'calm' ? b.tone : 'warm') as MusicName;
+      const next: ElemProps = { ...fitted.props, audio: props.audio && !BUILTIN.test(props.audio.src) ? props.audio : builtinAudio(tone), theme: b.theme, kicker: d.kicker, title: d.title, outro: d.outro,
         school: b.school || (base.school === '새싹초등학교' ? '우리 학교' : base.school), klass: b.klass || (base.school === '새싹초등학교' ? '' : base.klass), place: b.place || (base.school === '새싹초등학교' ? '' : base.place),
         chapters: fitted.props.chapters.map((c, i) => ({ ...c, title: names ? names[i] : d.chapters[i]?.title || c.title, sub: d.chapters[i]?.sub || c.sub })),
         stats: [{ label: '남긴 사진', n: fitted.props.chapters.reduce((a, c) => a + c.photos.length, 0), unit: '장' }, { label: '함께한 활동', n: fitted.props.chapters.length, unit: '가지' }] };

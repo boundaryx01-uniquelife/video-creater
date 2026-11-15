@@ -6,9 +6,11 @@ const OK_KEY = (src: string) => `studio:audio-ok:${src}`;
 const TYPE_BY_EXT: Record<string, string> = { mp3: 'audio/mpeg', wav: 'audio/wav', m4a: 'audio/mp4', ogg: 'audio/ogg' };
 
 /** "상업적 이용 권한" 확인 상태. 음원(src)마다 이 브라우저에 기억한다 */
+/** 이 프로젝트가 직접 만든 기본 음원(public/music)은 사용 권한 확인이 필요 없다 */
+export const BUILTIN = /^\/?music\/(lively|warm|calm)\.mp3$/;
 export function useAudioLicense(src?: string): [boolean, (v: boolean) => void] {
   const [ok, setOk] = useState(false);
-  useEffect(() => { try { setOk(!!src && localStorage.getItem(OK_KEY(src)) === '1'); } catch { setOk(false); } }, [src]);
+  useEffect(() => { if (src && BUILTIN.test(src)) { setOk(true); return; } try { setOk(!!src && localStorage.getItem(OK_KEY(src)) === '1'); } catch { setOk(false); } }, [src]);
   const set = (v: boolean) => { setOk(v); if (src) try { v ? localStorage.setItem(OK_KEY(src), '1') : localStorage.removeItem(OK_KEY(src)); } catch { /* 무시 */ } };
   return [ok, set];
 }

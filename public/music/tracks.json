@@ -1,0 +1,20 @@
+{
+ "lively": {
+  "file": "music/lively.mp3",
+  "bpm": 112,
+  "seconds": 122.5,
+  "title": "밝게 — 마림바와 우쿨렐레, 손뼉"
+ },
+ "warm": {
+  "file": "music/warm.mp3",
+  "bpm": 92,
+  "seconds": 106.8,
+  "title": "따뜻하게 — 전자 피아노와 철금"
+ },
+ "calm": {
+  "file": "music/calm.mp3",
+  "bpm": 76,
+  "seconds": 128.8,
+  "title": "차분하게 — 피아노 분산화음과 패드"
+ }
+}

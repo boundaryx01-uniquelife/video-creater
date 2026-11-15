@@ -4,14 +4,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
 import { fileURLToPath } from 'node:url';
-import sharp from 'sharp';
+import sharp, { type Sharp, type OverlayOptions } from 'sharp';
 import zlib from 'node:zlib';
 import exifr from 'exifr';
 import type { PhotoSpec } from '../../src/analysis/videoData.ts';
-import { THEMES, pagesOf, planElem, clampPace, type ElemProps } from '../../src/elem/types.ts';
+import { LAYOUT_KO, THEMES, pagesOf, planElem, clampPace, type ElemProps } from '../../src/elem/types.ts';
 import { curate, hamming, secondsOf } from '../../src/elem/curate.ts';
 import { parseGoal } from '../../src/elem/rules.ts';
 import { rangeOf, splitByGaps, timeNames } from '../../src/elem/arrange.ts';
+import { builtinAudio, type MusicName } from '../../src/elem/music.ts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const args = process.argv.slice(2), cmd = args[0];
@@ -32,11 +33,12 @@ export type Spec = {
   stats?: boolean | { label: string; n: number; unit: string }[];
   outro: { title: string; message: string; photos?: number[] };
   parentNote?: string;
+  music?: 'auto' | 'lively' | 'warm' | 'calm' | 'none' | { file: string; licensed: boolean; bpm?: number };
 };
 
 /* ---------- 사진 읽기 ---------- */
 const IMG = /\.(jpe?g|png|webp|heic|heif)$/i;
-async function decode(file: string): Promise<sharp.Sharp> {
+async function decode(file: string): Promise<Sharp> {
   const buf = fs.readFileSync(file);
   try { const s = sharp(buf, { failOn: 'none' }).rotate(); await s.clone().metadata(); await s.clone().resize(8, 8).raw().toBuffer(); return s; } catch (e) {
     if (!/\.(heic|heif)$/i.test(file)) throw e;
@@ -48,7 +50,7 @@ async function decode(file: string): Promise<sharp.Sharp> {
   }
 }
 /** 사진 둘레에 이미 들어 있는 단색 테두리(캡처·SNS 저장본)를 찾아 잘라낸다. 같은 색이 4변 중 3변 이상에서 확인될 때만, 한 변은 최대 20%까지(스튜디오 src/studio/image.ts 와 같은 기준) */
-async function trimBorder(s: sharp.Sharp): Promise<sharp.Sharp> {
+async function trimBorder(s: Sharp): Promise<Sharp> {
   try {
     const meta = await s.clone().toBuffer({ resolveWithObject: true }).then((r) => r.info), W = meta.width, H = meta.height;
     const { data, info } = await s.clone().resize(320, 320, { fit: 'inside' }).removeAlpha().raw().toBuffer({ resolveWithObject: true }), w = info.width, h = info.height, TOL = 14;
@@ -65,13 +67,13 @@ async function trimBorder(s: sharp.Sharp): Promise<sharp.Sharp> {
   } catch { return s; }
 }
 /** 선명도(라플라시안)·노출 점수 0~1. 스튜디오(src/studio/image.ts)와 같은 계산 */
-async function quality(s: sharp.Sharp): Promise<number> {
+async function quality(s: Sharp): Promise<number> {
   const { data, info } = await s.clone().resize(192, 192, { fit: 'inside' }).greyscale().raw().toBuffer({ resolveWithObject: true }), w = info.width, h = info.height;
   let mean = 0; for (let i = 0; i < w * h; i++) mean += data[i]; mean /= w * h; let v = 0, n = 0;
   for (let j = 1; j < h - 1; j++) for (let i = 1; i < w - 1; i++) { const l = 4 * data[j * w + i] - data[j * w + i - 1] - data[j * w + i + 1] - data[(j - 1) * w + i] - data[(j + 1) * w + i]; v += l * l; n++; }
   return +(0.7 * Math.min(1, Math.sqrt(v / Math.max(1, n)) / 40) + 0.3 * (1 - Math.min(1, Math.abs(mean - 125) / 125))).toFixed(3);
 }
-async function dhash(s: sharp.Sharp): Promise<string> {
+async function dhash(s: Sharp): Promise<string> {
   const d = await s.clone().resize(9, 8, { fit: 'fill' }).greyscale().raw().toBuffer(); let bits = '';
   for (let j = 0; j < 8; j++) for (let i = 0; i < 8; i++) bits += d[j * 9 + i] < d[j * 9 + i + 1] ? '1' : '0';
   let hex = ''; for (let k = 0; k < 64; k += 4) hex += parseInt(bits.slice(k, k + 4), 2).toString(16); return hex;
@@ -164,7 +166,7 @@ async function ingest() {
   // 한눈에 보기(사진 12장씩): 번호·시각·표시를 붙인 모아보기 이미지
   const CW = 480, CH = 360, LB = 44, per = 12, cols = 4; let sheets = 0;
   for (let s0 = 0; s0 < lib.length; s0 += per) {
-    const part = lib.slice(s0, s0 + per), rows = Math.ceil(part.length / cols), comps: sharp.OverlayOptions[] = [];
+    const part = lib.slice(s0, s0 + per), rows = Math.ceil(part.length / cols), comps: OverlayOptions[] = [];
     for (const [k, p] of part.entries()) {
       const x = (k % cols) * CW, y = Math.floor(k / cols) * (CH + LB);
       comps.push({ input: await sharp(path.join(out, p.file)).resize(CW - 8, CH - 8, { fit: 'contain', background: '#1b1d24' }).toBuffer(), left: x + 4, top: y + 4 });
@@ -186,7 +188,7 @@ async function ingest() {
   const wideOf = (c: ElemProps['chapters'][number]) => [...c.photos].filter((p) => p.aspect >= 1.2).sort(qd)[0], tall = [...kept].filter((p) => p.aspect < 1).sort(qd)[0];
   // 인트로 3장: 첫 활동의 가로 사진(가장 크게) + 세로 사진 + 마지막 활동의 가로 사진. 모자라면 품질순으로 채운다
   const heroes = [...new Set([wideOf(cur.chapters[0]), tall, wideOf(cur.chapters[cur.chapters.length - 1]), ...[...kept].sort(qd)].filter(Boolean))].slice(0, 3);
-  const spec: Spec = { goal: opt('goal'), school: brief.school, klass: brief.klass, kicker: base.kicker, title: '', day: base.day, place: '', theme: brief.theme, aspect: brief.aspect, targetSec: brief.targetSec, pace: 'auto',
+  const spec: Spec = { goal: opt('goal'), school: brief.school, klass: brief.klass, kicker: base.kicker, title: '', day: base.day, place: '', theme: brief.theme, aspect: brief.aspect, targetSec: brief.targetSec, pace: 'auto', music: 'auto',
     intro: heroes.map((p) => idOf.get(p.src)!), chapters: cur.chapters.map((c) => ({ title: c.title, sub: c.sub, photos: c.photos.map((p) => idOf.get(p.src)!), captions: {}, quote: null })), focus: {}, stats: true, outro: base.outro, parentNote: '' };
   const specFile = path.join(out, 'spec.json'); if (fs.existsSync(specFile) && !flag('force')) console.error('  spec.json 이 이미 있어 그대로 둡니다(새로 만들려면 --force). 초안은 spec.draft.json 에 씁니다.');
   fs.writeFileSync(fs.existsSync(specFile) && !flag('force') ? path.join(out, 'spec.draft.json') : specFile, JSON.stringify(spec, null, 1));
@@ -250,6 +252,20 @@ function build(quiet = false): { props: ElemProps; spec: Spec; dir: string; warn
     outro: { title: lines(spec.outro?.title, 2, 10, '마무리 큰 글') || '오늘도\n수고했어요!', message: lines(spec.outro?.message, 3, 36, '마무리 인사') },
     outroPhotos: (spec.outro?.photos ?? []).slice(0, 3).map((id) => photo(id, '마무리')).filter(Boolean).map((x) => x!.src), pace: auto ? 1 : clampPace(spec.pace), theme: spec.theme };
   if (err.length) die('spec.json 을 고쳐야 합니다:\n  - ' + err.join('\n  - '));
+  // 배경 음악: 기본 3곡(직접 작곡한 음원, public/music) 또는 교사가 준 파일(사용 권한 확인 필수)
+  const tracks: Record<string, { file: string; bpm: number; seconds: number }> = (() => { try { return JSON.parse(fs.readFileSync(path.join(ROOT, 'public/music/tracks.json'), 'utf8')); } catch { return {}; } })();
+  const goalTone = parseGoal(String(spec.goal ?? '')).tone, m = spec.music ?? 'auto';
+  if (typeof m === 'object' && m) {
+    const src = path.resolve(dir, String(m.file ?? '')), ext = path.extname(src).toLowerCase();
+    if (!m.licensed) err.push('음악 파일은 사용 권한(상업적 이용 포함)이 확인된 것만 쓸 수 있습니다. 확인했으면 music.licensed 를 true 로 하세요.');
+    else if (!fs.existsSync(src) || !['.mp3', '.m4a', '.wav', '.ogg'].includes(ext)) err.push(`음악 파일을 찾지 못했거나 형식이 다릅니다(MP3·M4A·WAV·OGG): ${src}`);
+    else { const dst = path.join(dir, 'media', 'music' + ext); fs.copyFileSync(src, dst); props.audio = { src: 'media/music' + ext, volume: 0.75, fadeInSec: 0.5, fadeOutSec: 2.5, startFromSec: 0, loop: true, ...(m.bpm ? { bpm: Number(m.bpm), beatOffsetSec: 0, syncCuts: false } : {}) }; }
+  } else if (m !== 'none') {
+    const name = m === 'auto' ? goalTone : m, t = tracks[name];
+    if (!t) warn.push(`기본 음악 “${name}”을 찾지 못해 음악 없이 만듭니다(node scripts/make-music.mjs 로 다시 만들 수 있습니다).`);
+    else props.audio = builtinAudio(name as MusicName);
+  }
+  if (err.length) die('spec.json 을 고쳐야 합니다:\n  - ' + err.join('\n  - '));
   // 길이 맞추기: pace 가 "auto"(기본)면 고른 사진은 그대로 두고 장면 속도만(0.7~1.5배) 조정한다. 숫자면 그 값을 그대로 쓴다
   const target = Math.max(20, Math.min(180, Number(spec.targetSec) || 60));
   if (auto) props = { ...props, pace: +clampPace(target / secondsOf({ ...props, pace: 1 })).toFixed(2) };
@@ -258,9 +274,10 @@ function build(quiet = false): { props: ElemProps; spec: Spec; dir: string; warn
   else if (auto && ((props.pace ?? 1) < 0.8 || (props.pace ?? 1) > 1.3)) warn.push(`길이는 맞췄지만 속도가 ${props.pace}배로 ${(props.pace ?? 1) < 1 ? '빠릅니다' : '느립니다'} → 사진 수를 ${(props.pace ?? 1) < 1 ? '줄이는' : '늘리는'} 편이 보기 좋습니다.`);
   fs.writeFileSync(path.join(dir, 'video.json'), JSON.stringify(props));
   if (!quiet) {
-    console.log(`구성 완료: ${sec.toFixed(1)}초 (목표 ${target}초, 속도 ${props.pace}배) · ${spec.aspect === '9:16' ? '세로 9:16' : '가로 16:9'} · 색 ${props.theme} · 사진 ${total}/${lib.length}장 사용`);
+    const musicLabel = !props.audio ? '음악 없음' : props.audio.src.startsWith('music/') ? `음악 ${path.basename(props.audio.src, '.mp3')}(${props.audio.bpm} BPM, 장면 전환을 박자에 맞춤)` : '음악: 교사 제공 파일';
+    console.log(`구성 완료: ${sec.toFixed(1)}초 (목표 ${target}초, 속도 ${props.pace}배) · ${musicLabel} · ${spec.aspect === '9:16' ? '세로 9:16' : '가로 16:9'} · 색 ${props.theme} · 사진 ${total}/${lib.length}장 사용`);
     // 사진은 한 화면에 1~3장씩 묶여 나온다. 대괄호 하나가 한 화면이고, 한 장짜리 화면의 자막이 가장 크게 보인다
-    chapters.forEach((c, i) => { const ids = spec.chapters[i].photos; console.log(`  ${i + 1}. ${c.title} (${c.sub || '-'}) — ${c.photos.length}장, 화면 묶음: ${pagesOf(c.photos).map((g) => '[' + g.map((k) => '#' + ids[k]).join(' ') + ']').join(' ')}${c.quote ? ' + 한마디' : ''}`); });
+    chapters.forEach((c, i) => { const ids = spec.chapters[i].photos; console.log(`  ${i + 1}. ${c.title} (${c.sub || '-'}) — ${c.photos.length}장, 화면 묶음: ${pagesOf(c.photos, i).map((g) => '[' + g.idx.map((k) => '#' + ids[k]).join(' ') + ' ' + LAYOUT_KO[g.layout] + ']').join(' ')}${c.quote ? ' + 한마디' : ''}`); });
     if (warn.length) console.log('주의:\n  - ' + warn.join('\n  - '));
   }
   return { props, spec, dir, warn };
@@ -270,14 +287,14 @@ function build(quiet = false): { props: ElemProps; spec: Spec; dir: string; warn
 async function engine(dir: string) {
   const { bundle } = await import('@remotion/bundler'), R = await import('@remotion/renderer');
   const cache = path.join(ROOT, '.cache', 'skill-bundle'), stampFile = path.join(cache, '.stamp');
-  let newest = 0; const walk = (d: string) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const f = path.join(d, e.name); if (e.isDirectory()) walk(f); else newest = Math.max(newest, fs.statSync(f).mtimeMs); } }; walk(path.join(ROOT, 'src'));
+  let newest = 0; const walk = (d: string) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const f = path.join(d, e.name); if (e.isDirectory()) walk(f); else newest = Math.max(newest, fs.statSync(f).mtimeMs); } }; walk(path.join(ROOT, 'public', 'music')); walk(path.join(ROOT, 'src'));
   const stamp = String(newest);
   if (!(fs.existsSync(path.join(cache, 'index.html')) && fs.existsSync(stampFile) && fs.readFileSync(stampFile, 'utf8') === stamp)) {
     console.error('  영상 엔진 준비 중(처음 한 번, 10–30초)…'); fs.rmSync(cache, { recursive: true, force: true });
     await bundle({ entryPoint: path.join(ROOT, 'src/remotion/index.ts'), publicDir: path.join(ROOT, 'public'), outDir: cache }); fs.writeFileSync(stampFile, stamp);
   }
   const media = path.join(dir, 'media');
-  const server = http.createServer((req, res) => { const f = path.join(media, path.basename(decodeURIComponent((req.url ?? '').split('?')[0]))); if (!f.startsWith(media) || !fs.existsSync(f)) { res.statusCode = 404; return res.end(); } res.setHeader('content-type', 'image/jpeg'); res.setHeader('access-control-allow-origin', '*'); fs.createReadStream(f).pipe(res); });
+  const server = http.createServer((req, res) => { const f = path.join(media, path.basename(decodeURIComponent((req.url ?? '').split('?')[0]))); if (!f.startsWith(media) || !fs.existsSync(f)) { res.statusCode = 404; return res.end(); } res.setHeader('content-type', ({ '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.wav': 'audio/wav', '.ogg': 'audio/ogg' } as Record<string, string>)[path.extname(f).toLowerCase()] ?? 'image/jpeg'); res.setHeader('access-control-allow-origin', '*'); fs.createReadStream(f).pipe(res); });
   await new Promise<void>((ok) => server.listen(0, '127.0.0.1', ok)); const port = (server.address() as any).port;
   const abs = (p: ElemProps): ElemProps => JSON.parse(JSON.stringify(p).replaceAll('"media/', `"http://127.0.0.1:${port}/`));
   return { R, serveUrl: cache, abs, close: () => server.close(), browserExecutable: process.env.CHROME_BIN || undefined, logLevel: 'error' as const };
@@ -294,10 +311,10 @@ async function stills() {
       console.log(`장면 ${n}: ${f1}`); return;
     }
     const vert = spec.aspect === '9:16', tw = vert ? 270 : 480, th = vert ? 480 : 270, LB = 34, cols = vert ? 6 : 4, tmp = path.join(dir, '.stills'); fs.rmSync(tmp, { recursive: true, force: true }); fs.mkdirSync(tmp, { recursive: true });
-    const comps: sharp.OverlayOptions[] = [];
+    const comps: OverlayOptions[] = [];
     for (const [k, s] of scenes.entries()) {
       const f = path.join(tmp, `${z(k)}.jpg`); await E.R.renderStill({ composition: comp, serveUrl: E.serveUrl, frame: Math.min(comp.durationInFrames - 1, s.from + Math.min(s.dur - 2, 50)), output: f, inputProps, imageFormat: 'jpeg', jpegQuality: 80, scale: tw / comp.width, browserExecutable: E.browserExecutable, logLevel: E.logLevel });
-      const x = (k % cols) * tw, y = Math.floor(k / cols) * (th + LB), label = `${k + 1}. ${KO[s.type]}${'ci' in s ? ' ' + (s.ci + 1) : ''} · ${(s.from / 30).toFixed(0)}–${((s.from + s.dur) / 30).toFixed(0)}초`;
+      const x = (k % cols) * tw, y = Math.floor(k / cols) * (th + LB), label = `${k + 1}. ${s.type === 'page' ? LAYOUT_KO[s.layout] : KO[s.type]}${'ci' in s ? ' ' + (s.ci + 1) : ''} · ${(s.from / 30).toFixed(0)}–${((s.from + s.dur) / 30).toFixed(0)}초`;
       comps.push({ input: f, left: x, top: y }, { input: Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${tw}" height="${LB}"><rect width="100%" height="100%" fill="#14161c"/><text x="8" y="23" font-family="sans-serif" font-size="18" fill="#e8e2d3">${esc(label)}</text></svg>`), left: x, top: y + th });
     }
     const rows = Math.ceil(scenes.length / cols), outFile = path.join(dir, vert ? 'preview-vertical.jpg' : 'preview.jpg');
