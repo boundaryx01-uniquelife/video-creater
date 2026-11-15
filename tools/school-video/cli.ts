@@ -5,6 +5,7 @@ import path from 'node:path';
 import http from 'node:http';
 import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
+import zlib from 'node:zlib';
 import exifr from 'exifr';
 import type { PhotoSpec } from '../../src/analysis/videoData.ts';
 import { THEMES, pagesOf, planElem, clampPace, type ElemProps } from '../../src/elem/types.ts';
@@ -21,7 +22,7 @@ const z = (n: number, w = 2) => String(n).padStart(w, '0'), WD = ['일', '월', 
 const readJson = (f: string) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch (e) { return die(`${f} 을(를) 읽지 못했습니다: ${(e as Error).message}`); } };
 const chars = (s: string) => [...s].length;
 
-type Lib = { id: number; file: string; name: string; time: string; date: string; wd: string; ts: number | null; aspect: number; w: number; h: number; q: number; hash: string; dupOf: number | null; blurry: boolean };
+type Lib = { id: number; file: string; name: string; folder: string; timeSrc: 'exif' | 'name' | 'none'; time: string; date: string; wd: string; ts: number | null; aspect: number; w: number; h: number; q: number; hash: string; dupOf: number | null; blurry: boolean };
 export type Spec = {
   goal?: string; school: string; klass: string; kicker: string; title: string; day: string; place: string;
   theme: string; aspect: '16:9' | '9:16'; targetSec: number; pace?: number | 'auto';
@@ -77,25 +78,84 @@ async function dhash(s: sharp.Sharp): Promise<string> {
 }
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
 
+
+/* ---------- 재료 받기: 폴더 또는 zip, 하위 폴더, 메모 파일 ---------- */
+const VID = /\.(mp4|mov|m4v|avi|mkv|3gp)$/i, TXT = /\.(txt|md)$/i;
+/** zip을 작업 폴더 안에 푼다. 중앙 디렉터리를 직접 읽어 파일 이름의 원래 바이트를 얻는다(Windows에서 만든 zip의 한글 이름 복원용). 경로 탈출 방지 */
+async function unzipTo(zip: string, dir: string): Promise<void> {
+  fs.rmSync(dir, { recursive: true, force: true }); fs.mkdirSync(dir, { recursive: true });
+  const fd = fs.openSync(zip, 'r'), size = fs.fstatSync(fd).size, rd = (pos: number, len: number) => { const b = Buffer.alloc(len); fs.readSync(fd, b, 0, len, pos); return b; };
+  try {
+    const tailLen = Math.min(size, 66000), tail = rd(size - tailLen, tailLen); let e = tail.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06])); if (e < 0) throw new Error('zip 파일이 아니거나 손상되었습니다');
+    const count = tail.readUInt16LE(e + 10), cdSize = tail.readUInt32LE(e + 12), cdOff = tail.readUInt32LE(e + 16);
+    if (count === 0xffff || cdOff === 0xffffffff) throw new Error('4GB가 넘는 zip(zip64)은 풀지 못합니다. 폴더째로 주세요');
+    const cd = rd(cdOff, cdSize); let p = 0;
+    for (let k = 0; k < count && p + 46 <= cd.length; k++) {
+      if (cd.readUInt32LE(p) !== 0x02014b50) break;
+      const flags = cd.readUInt16LE(p + 8), method = cd.readUInt16LE(p + 10), csize = cd.readUInt32LE(p + 20), nlen = cd.readUInt16LE(p + 28), xlen = cd.readUInt16LE(p + 30), clen = cd.readUInt16LE(p + 32), lho = cd.readUInt32LE(p + 42);
+      const rawName = cd.subarray(p + 46, p + 46 + nlen); p += 46 + nlen + xlen + clen;
+      const name = fixName(rawName).replace(/\\/g, '/'); // UTF-8 표시가 있어도 실제로는 CP949인 zip이 있어 항상 바이트로 판별한다
+      if (name.endsWith('/') || /(^|\/)(__MACOSX|\.)/.test(name)) continue;
+      const safe = name.split('/').filter((x) => x && x !== '..').map((x) => x.replace(/[<>:"|?*\x00-\x1f]/g, '_')).join('/'), target = path.join(dir, safe); if (!target.startsWith(dir + path.sep)) continue;
+      if (flags & 1) throw new Error('암호가 걸린 zip은 풀지 못합니다');
+      if (csize > 400e6) continue; // 사진 한 장이 400MB를 넘을 수는 없다(동영상 등은 건너뜀)
+      const lh = rd(lho, 30), dataOff = lho + 30 + lh.readUInt16LE(26) + lh.readUInt16LE(28), comp = rd(dataOff, csize);
+      const data = method === 0 ? comp : method === 8 ? zlib.inflateRawSync(comp) : null; if (!data) continue;
+      fs.mkdirSync(path.dirname(target), { recursive: true }); fs.writeFileSync(target, data);
+    }
+  } finally { fs.closeSync(fd); }
+}
+/** zip 안의 한글 파일 이름 복원: UTF-8 표시가 없는 이름은 UTF-8로 먼저, 안 되면 Windows 한글(CP949)로 푼다 */
+function fixName(bytes: Buffer): string {
+  try { return new TextDecoder('utf-8', { fatal: true }).decode(bytes); } catch { /* UTF-8 아님 */ }
+  try { return new TextDecoder('euc-kr', { fatal: true }).decode(bytes); } catch { return bytes.toString('latin1'); }
+}
+type Found = { full: string; rel: string; folder: string };
+function walkSource(root: string) {
+  const photos: Found[] = [], memos: string[] = []; let videos = 0, others = 0;
+  const walk = (d: string, depth: number) => { for (const e of fs.readdirSync(d, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name, 'ko', { numeric: true }))) {
+    if (e.name.startsWith('.') || e.name === '__MACOSX') continue; const full = path.join(d, e.name), rel = path.relative(root, full).split(path.sep).join('/');
+    if (e.isDirectory()) { if (depth < 4) walk(full, depth + 1); } else if (IMG.test(e.name)) photos.push({ full, rel, folder: rel.includes('/') ? rel.split('/')[0] : '' });
+    else if (VID.test(e.name)) videos++; else if (TXT.test(e.name) && depth <= 1) memos.push(full); else others++; } };
+  walk(root, 0);
+  // zip을 풀면 폴더 하나에 전부 들어 있는 경우가 많다 → 그 폴더는 활동 구분으로 치지 않는다
+  const tops = new Set(photos.map((p) => p.folder)); if (tops.size === 1 && !tops.has('')) { const top = [...tops][0]; for (const p of photos) { const rest = p.rel.slice(top.length + 1); p.folder = rest.includes('/') ? rest.split('/')[0] : ''; } }
+  return { photos, memos, videos, others };
+}
+/** 파일 이름에 든 촬영 시각(갤럭시 20260514_101502.jpg 등). 메신저가 붙인 이름(KakaoTalk_…)은 받은 시각이라 쓰지 않는다 */
+function timeFromName(name: string): Date | null {
+  if (/^(kakaotalk|img-\d{8}-wa|line_|telegram|received_|screenshot|스크린샷)/i.test(name)) return null;
+  const m = name.match(/(20\d{2})[-_.]?(0[1-9]|1[0-2])[-_.]?([0-3]\d)[-_ T]?([0-2]\d)[-_.:]?([0-5]\d)[-_.:]?([0-5]\d)/); if (!m) return null;
+  const d = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]); return isNaN(+d) || +m[4] > 23 ? null : d;
+}
+const folderTitle = (f: string) => [...f.replace(/^[\d\s._\-)\]]+/, '').trim() || f].slice(0, 14).join('');
+
 async function ingest() {
   const src = path.resolve(args[1] ?? die('사진 폴더를 지정하세요: ingest <사진 폴더> --out <작업 폴더>')), out = path.resolve(opt('out') || die('--out <작업 폴더> 가 필요합니다'));
-  if (!fs.existsSync(src)) die(`사진 폴더가 없습니다: ${src}`);
-  const files = fs.readdirSync(src).filter((f) => IMG.test(f)).sort(); if (!files.length) die('폴더에 사진(JPG·PNG·WebP·HEIC)이 없습니다.');
+  if (!fs.existsSync(src)) die(`사진 폴더(또는 zip 파일)가 없습니다: ${src}`);
+  let root = src;
+  if (fs.statSync(src).isFile()) { if (!/\.zip$/i.test(src)) die('폴더나 .zip 파일을 지정하세요.'); root = path.join(out, 'source'); console.error('  zip 푸는 중…'); try { await unzipTo(src, root); } catch (e) { die(`zip을 풀지 못했습니다: ${(e as Error).message}`); } }
+  const found = walkSource(root), files = found.photos; if (!files.length) die(`사진(JPG·PNG·WebP·HEIC)이 없습니다.${found.videos ? ` 동영상 ${found.videos}개만 있습니다(동영상은 아직 다루지 못합니다).` : ''}`);
   fs.mkdirSync(path.join(out, 'media'), { recursive: true }); fs.mkdirSync(path.join(out, 'sheets'), { recursive: true });
-  const raw: (Omit<Lib, 'id' | 'file' | 'dupOf' | 'blurry'> & { tmp: Buffer })[] = [], failed: string[] = []; let borders = 0;
-  for (const [k, f] of files.entries()) {
+  const raw: (Omit<Lib, 'id' | 'file' | 'dupOf' | 'blurry'> & { tmp: Buffer; ow: number })[] = [], failed: string[] = []; let borders = 0;
+  for (const [k, ff] of files.entries()) { const f = ff.rel;
     try {
-      const full = path.join(src, f), s0 = await decode(full), s = await trimBorder(s0), trimmed = s !== s0; if (trimmed) borders++;
-      let when: Date | null = null; try { const ex = await exifr.parse(fs.readFileSync(full), { pick: ['DateTimeOriginal', 'CreateDate'] } as any); const d = ex?.DateTimeOriginal ?? ex?.CreateDate; if (d instanceof Date && !isNaN(+d)) when = d; } catch { /* EXIF 없음 */ }
+      const full = ff.full, s0 = await decode(full), s = await trimBorder(s0), trimmed = s !== s0; if (trimmed) borders++;
+      let when: Date | null = null, timeSrc: Lib['timeSrc'] = 'none'; try { const ex = await exifr.parse(fs.readFileSync(full), { pick: ['DateTimeOriginal', 'CreateDate'] } as any); const d = ex?.DateTimeOriginal ?? ex?.CreateDate; if (d instanceof Date && !isNaN(+d)) { when = d; timeSrc = 'exif'; } } catch { /* EXIF 없음 */ }
+      if (!when) { when = timeFromName(path.basename(f)); if (when) timeSrc = 'name'; }
+      const ow = Math.max((await s.clone().metadata()).width ?? 0, (await s.clone().metadata()).height ?? 0);
       const { data, info } = await s.clone().resize(2560, 2560, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 90 }).toBuffer({ resolveWithObject: true });
-      raw.push({ name: f, tmp: data, w: info.width, h: info.height, aspect: +(info.width / info.height).toFixed(3), q: await quality(s), hash: await dhash(s), ts: when ? +when : null,
+      raw.push({ name: f, folder: ff.folder, timeSrc, ow, tmp: data, w: info.width, h: info.height, aspect: +(info.width / info.height).toFixed(3), q: await quality(s), hash: await dhash(s), ts: when ? +when : null,
         time: when ? `${z(when.getHours())}:${z(when.getMinutes())}` : '', date: when ? `${when.getFullYear()}.${z(when.getMonth() + 1)}.${z(when.getDate())}` : '', wd: when ? WD[when.getDay()] : '' });
       if ((k + 1) % 10 === 0) console.error(`  ${k + 1}/${files.length} 처리`);
     } catch (e) { failed.push(`${f}(${String((e as Error).message).slice(0, 60)})`); }
   }
   if (!raw.length) die('읽을 수 있는 사진이 없습니다: ' + failed.join(', '));
-  raw.sort((a, b) => (a.ts ?? Infinity) - (b.ts ?? Infinity) || a.name.localeCompare(b.name));
-  const lib: Lib[] = raw.map((r, i) => { const { tmp, ...rest } = r, file = `media/${z(i + 1, 3)}.jpg`; fs.writeFileSync(path.join(out, file), tmp); return { id: i + 1, file, ...rest, dupOf: null, blurry: false }; });
+  // 하위 폴더가 2개 이상이면 교사가 나눠 둔 활동으로 본다(폴더 이름순 = 활동 순서)
+  const folders = [...new Set(raw.map((r) => r.folder))].filter(Boolean).sort((a, b) => a.localeCompare(b, 'ko', { numeric: true })), byFolder = folders.length >= 2;
+  const fo = (r: { folder: string }) => (byFolder ? (r.folder ? folders.indexOf(r.folder) : folders.length) : 0);
+  raw.sort((a, b) => fo(a) - fo(b) || (a.ts ?? Infinity) - (b.ts ?? Infinity) || a.name.localeCompare(b.name, 'ko', { numeric: true }));
+  const lib: Lib[] = raw.map((r, i) => { const { tmp, ow: _ow, ...rest } = r, file = `media/${z(i + 1, 3)}.jpg`; fs.writeFileSync(path.join(out, file), tmp); return { id: i + 1, file, ...rest, dupOf: null, blurry: false }; });
   // 비슷한 사진(직전 3장과 비교)·흐린 사진 표시 — 최종 판단은 사진을 직접 보고 한다
   lib.forEach((p, i) => { for (let j = Math.max(0, i - 3); j < i; j++) if (hamming(lib[j].hash, p.hash) <= 8) { p.dupOf = lib[j].dupOf ?? lib[j].id; break; } });
   const med = [...lib].map((p) => p.q).sort((a, b) => a - b)[Math.floor(lib.length / 2)]; lib.forEach((p) => { p.blurry = p.q < med * 0.45; });
@@ -115,8 +175,11 @@ async function ingest() {
   // 자동 초안(spec.json): 시각으로 활동을 나누고, 비슷한·흐린 사진을 빼고, 길이에 맞춘 출발점
   const brief = parseGoal(opt('goal')), asPhoto = (p: Lib): PhotoSpec => ({ src: p.file, aspect: p.aspect, time: p.time, date: p.date, wd: p.wd, hex: '#888', exif: '', model: '', fy: p.aspect < 0.9 ? 0.36 : 0.45, fx: 0.5, cap: { chip: p.time, title: '', sub: '' }, ts: p.ts ?? undefined, q: p.q, h: p.hash });
   const idOf = new Map(lib.map((p) => [p.file, p.id])), photos = lib.map(asPhoto);
-  let groups = splitByGaps(photos); if (!groups) { const n = Math.min(4, Math.max(1, Math.round(photos.length / 8))), per2 = Math.ceil(photos.length / n); groups = Array.from({ length: n }, (_, i) => photos.slice(i * per2, (i + 1) * per2)).filter((g) => g.length); }
-  const names = timeNames(groups), first = lib.find((p) => p.date);
+  let groups: PhotoSpec[][] | null = null, folderNames: string[] | null = null;
+  if (byFolder) { const keys = [...folders, ...(lib.some((p) => !p.folder) ? [''] : [])]; groups = keys.map((k) => lib.filter((p) => p.folder === k).map(asPhoto)).filter((g) => g.length); folderNames = keys.filter((k) => lib.some((p) => p.folder === k)).map((k) => (k ? folderTitle(k) : '그 밖의 사진')); }
+  if (!groups) groups = splitByGaps(photos);
+  if (!groups) { const n = Math.min(4, Math.max(1, Math.round(photos.length / 8))), per2 = Math.ceil(photos.length / n); groups = Array.from({ length: n }, (_, i) => photos.slice(i * per2, (i + 1) * per2)).filter((g) => g.length); }
+  const names = folderNames ?? timeNames(groups), first = lib.find((p) => p.date);
   const base: ElemProps = { school: brief.school, klass: brief.klass, kicker: first ? first.date.slice(0, 4) : '', title: '', day: first ? `${first.date} (${first.wd})` : '', place: '', introPhotos: [], chapters: groups.map((g, i) => ({ title: names[i], sub: rangeOf(g), photos: g })), outro: { title: '오늘도\n수고했어요!', message: '함께해 주셔서 감사합니다.' } };
   const cur = curate(base, brief.targetSec).props, qd = (a: PhotoSpec, b: PhotoSpec) => (b.q ?? 0) - (a.q ?? 0), kept = cur.chapters.flatMap((c) => c.photos);
   const wideOf = (c: ElemProps['chapters'][number]) => [...c.photos].filter((p) => p.aspect >= 1.2).sort(qd)[0], tall = [...kept].filter((p) => p.aspect < 1).sort(qd)[0];
@@ -126,9 +189,28 @@ async function ingest() {
     intro: heroes.map((p) => idOf.get(p.src)!), chapters: cur.chapters.map((c) => ({ title: c.title, sub: c.sub, photos: c.photos.map((p) => idOf.get(p.src)!), captions: {}, quote: null })), focus: {}, stats: true, outro: base.outro, parentNote: '' };
   const specFile = path.join(out, 'spec.json'); if (fs.existsSync(specFile) && !flag('force')) console.error('  spec.json 이 이미 있어 그대로 둡니다(새로 만들려면 --force). 초안은 spec.draft.json 에 씁니다.');
   fs.writeFileSync(fs.existsSync(specFile) && !flag('force') ? path.join(out, 'spec.draft.json') : specFile, JSON.stringify(spec, null, 1));
-  console.log(`사진 ${lib.length}장을 읽었습니다${failed.length ? ` (읽지 못한 파일 ${failed.length}개: ${failed.slice(0, 5).join(', ')})` : ''}.`);
-  console.log(`촬영: ${first ? `${first.date} (${first.wd})` : '날짜 정보 없음'} · 시각 없는 사진 ${lib.filter((p) => !p.time).length}장 · 비슷한 사진 표시 ${lib.filter((p) => p.dupOf).length}장 · 흐림 표시 ${lib.filter((p) => p.blurry).length}장${borders ? ` · 테두리 잘라낸 사진 ${borders}장` : ''}`);
-  console.log(`활동 초안 ${groups.length}개: ` + groups.map((g, i) => `${names[i]}(${rangeOf(g) || '시각 없음'}, #${idOf.get(g[0].src)}–#${idOf.get(g[g.length - 1].src)}, ${g.length}장)`).join(' / '));
+  // 재료 점검: 무엇이 부족한지, 교사에게 무엇을 물어야 하는지 정리한다(intake.json)
+  const cnt = (k: Lib['timeSrc']) => lib.filter((p) => p.timeSrc === k).length, lowRes = raw.filter((r) => r.ow < 1280).length;
+  const dates: Record<string, number> = {}; lib.forEach((p) => { if (p.date) dates[p.date] = (dates[p.date] ?? 0) + 1; });
+  const memos = found.memos.slice(0, 3).map((f) => ({ file: path.basename(f), text: fs.readFileSync(f, 'utf8').slice(0, 2000).trim() })).filter((m) => m.text);
+  const ask: string[] = [], note: string[] = [];
+  if (cnt('none') >= Math.max(1, lib.length * 0.5)) ask.push(`촬영 시각이 없는 사진이 ${cnt('none')}/${lib.length}장입니다(메신저·웹에서 저장한 사진으로 보입니다). 원본 파일을 받을 수 있는지, 어렵다면 활동 순서를 물어보세요.`);
+  else if (cnt('none')) note.push(`촬영 시각이 없는 사진 ${cnt('none')}장은 순서를 파일 이름으로 정했습니다(사진을 보고 자리를 확인하세요).`);
+  if (cnt('name')) note.push(`${cnt('name')}장은 사진 속 기록 대신 파일 이름의 시각을 썼습니다.`);
+  if (lowRes >= Math.max(1, lib.length * 0.3)) ask.push(`긴 변이 1280px보다 작은 사진이 ${lowRes}장입니다. 큰 화면에서는 흐리게 보이니 원본이 있는지 물어보세요.`);
+  if (Object.keys(dates).length > 1) ask.push(`촬영 날짜가 여러 날입니다(${Object.entries(dates).map(([d, n]) => `${d} ${n}장`).join(', ')}). 한 행사로 묶을지, 날짜별로 나눌지, 다른 날 사진은 뺄지 물어보세요.`);
+  if (lib.length < 8) ask.push(`사진이 ${lib.length}장뿐이라 영상이 20–30초로 짧습니다. 더 넣을 사진이 있는지 물어보세요.`);
+  if (lib.length > 150) note.push(`사진이 ${lib.length}장으로 많습니다. 모아보기가 ${sheets}장이라 보는 데 시간이 걸립니다.`);
+  if (found.videos) note.push(`동영상 ${found.videos}개는 쓰지 않았습니다(사진만 다룹니다).`);
+  if (failed.length) note.push(`읽지 못한 파일 ${failed.length}개: ${failed.slice(0, 5).join(', ')}`);
+  if (borders) note.push(`사진 ${borders}장에서 둘레의 단색 테두리를 잘라냈습니다.`);
+  if (byFolder) note.push(`하위 폴더 ${folders.length}개를 활동 구분으로 썼습니다: ${folders.map(folderTitle).join(' / ')}`);
+  fs.writeFileSync(path.join(out, 'intake.json'), JSON.stringify({ total: lib.length, time: { exif: cnt('exif'), name: cnt('name'), none: cnt('none') }, lowRes, dates, videos: found.videos, otherFiles: found.others, failed, folders: byFolder ? folders : [], memos, ask, note }, null, 1));
+  console.log(`사진 ${lib.length}장을 읽었습니다. 촬영: ${first ? `${first.date} (${first.wd})` : '날짜 정보 없음'} · 비슷한 사진 표시 ${lib.filter((p) => p.dupOf).length}장 · 흐림 표시 ${lib.filter((p) => p.blurry).length}장`);
+  console.log(`활동 초안 ${groups.length}개${byFolder ? '(폴더 기준)' : ''}: ` + groups.map((g, i) => `${names[i]}(${rangeOf(g) || '시각 없음'}, #${idOf.get(g[0].src)}–#${idOf.get(g[g.length - 1].src)}, ${g.length}장)`).join(' / '));
+  if (memos.length) console.log('교사 메모:\n' + memos.map((m) => `  [${m.file}]\n` + m.text.split('\n').map((l) => '    ' + l).join('\n')).join('\n'));
+  if (note.length) console.log('참고:\n  - ' + note.join('\n  - '));
+  if (ask.length) console.log('교사에게 물어볼 것(재료):\n  - ' + ask.join('\n  - '));
   console.log(`모아보기: ${path.join(out, 'sheets')}/sheet-01.jpg … sheet-${z(sheets)}.jpg (${sheets}장) — 이 이미지를 보고 사진을 고르세요. 한 장을 크게 보려면 ${path.join(out, 'media')}/NNN.jpg`);
   console.log(`초안 구성: ${specFile} (목표 ${brief.targetSec}초, ${brief.aspect}, 색 ${brief.theme}) — 사진을 본 뒤 고쳐서 build 하세요.`);
 }
