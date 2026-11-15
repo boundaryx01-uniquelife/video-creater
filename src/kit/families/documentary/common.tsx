@@ -91,3 +91,12 @@ export const DarkBase: React.FC<{ children: React.ReactNode; accent: string }> =
     {children}
   </AbsoluteFill>;
 };
+
+/** 진행 타임코드 HH:MM:SS:FF (프레임에서 계산) */
+export const Timecode: React.FC<{ size: number; start?: number; accent?: string }> = ({ size, start = 0, accent }) => {
+  const f = useCurrentFrame() + start, { palette, sans } = useDoc(), p = (n: number) => String(n).padStart(2, '0');
+  return <span style={{ fontFamily: sans, fontWeight: 600, fontSize: size, color: palette.ink, letterSpacing: size * 0.12, fontVariantNumeric: 'tabular-nums', display: 'inline-flex', alignItems: 'center', gap: size * 0.5 }}>
+    {accent && <span style={{ width: size * 0.5, height: size * 0.5, borderRadius: '50%', background: accent, opacity: f % 30 < 18 ? 1 : 0.25 }} />}
+    {`00:${p(Math.floor(f / 1800) % 60)}:${p(Math.floor(f / 30) % 60)}:${p(f % 30)}`}
+  </span>;
+};

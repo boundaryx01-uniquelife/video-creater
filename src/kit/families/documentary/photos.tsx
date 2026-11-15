@@ -32,7 +32,7 @@ export const PhotoSide: React.FC<PartProps<'photo.side'>> = ({ data, photos, dur
   </AbsoluteFill>;
 };
 
-const Label: React.FC<{ text?: string; a: string }> = ({ text, a }) => { const { PAD, portrait, W } = useLayout(); return text ? <div style={{ position: 'absolute', left: PAD, top: PAD * (portrait ? 1.7 : 1.5), zIndex: 20 }}><Tag text={text} accent={a} size={Math.max(24, W * 0.016)} delay={10} /></div> : null; };
+export const Label: React.FC<{ text?: string; a: string }> = ({ text, a }) => { const { PAD, portrait, W } = useLayout(); return text ? <div style={{ position: 'absolute', left: PAD, top: PAD * (portrait ? 1.7 : 1.5), zIndex: 20 }}><Tag text={text} accent={a} size={Math.max(24, W * 0.016)} delay={10} /></div> : null; };
 
 export const PhotoPair: React.FC<PartProps<'photo.pair'>> = ({ data, photos, dur, scene }) => {
   const { palette } = useDoc(), { W, H, portrait } = useLayout(), a = accentOf(palette, scene.section), g = 6, fs = portrait ? 38 : 34;
@@ -40,28 +40,6 @@ export const PhotoPair: React.FC<PartProps<'photo.pair'>> = ({ data, photos, dur
     {photos.slice(0, 2).map((p, i) => portrait
       ? <Cell key={i} ph={p} dur={dur} x={0} y={i * (H / 2 + g / 2)} w={W} h={H / 2 - g / 2} delay={i * 8} dir={i ? -1 : 1} from="l" accent={a} fs={fs} />
       : <Cell key={i} ph={p} dur={dur} x={i * (W / 2 + g / 2)} y={0} w={W / 2 - g / 2} h={H} delay={i * 8} dir={i ? -1 : 1} from={i ? 'r' : 'l'} accent={a} fs={fs} />)}
-    <Bug scene={scene} /><Label text={data.label} a={a} />
-  </AbsoluteFill>;
-};
-
-export const PhotoTrio: React.FC<PartProps<'photo.trio'>> = ({ data, photos, dur, scene }) => {
-  const { palette } = useDoc(), { W, H, portrait } = useLayout(), a = accentOf(palette, scene.section), g = 6, ph = photos.slice(0, 3), fs = portrait ? 34 : 32;
-  const R = portrait
-    ? [[0, 0, W, H * 0.5 - g / 2], [0, H * 0.5 + g / 2, W / 2 - g / 2, H * 0.5 - g / 2], [W / 2 + g / 2, H * 0.5 + g / 2, W / 2 - g / 2, H * 0.5 - g / 2]]
-    : [[0, 0, W * 0.6 - g / 2, H], [W * 0.6 + g / 2, 0, W * 0.4 - g / 2, H / 2 - g / 2], [W * 0.6 + g / 2, H / 2 + g / 2, W * 0.4 - g / 2, H / 2 - g / 2]];
-  return <AbsoluteFill style={{ background: palette.bg }}>
-    {ph.map((p, i) => <Cell key={i} ph={p} dur={dur} x={R[i][0]} y={R[i][1]} w={R[i][2]} h={R[i][3]} delay={i * 8} dir={i % 2 ? -1 : 1} from={i === 0 ? 'l' : portrait ? 'b' : 'r'} accent={a} fs={i === 0 ? fs * 1.15 : fs} />)}
-    <Bug scene={scene} /><Label text={data.label} a={a} />
-  </AbsoluteFill>;
-};
-
-export const PhotoGrid: React.FC<PartProps<'photo.grid'>> = ({ data, photos, dur, scene }) => {
-  const { palette } = useDoc(), { W, H, portrait } = useLayout(), a = accentOf(palette, scene.section), g = 6, ph = photos.slice(0, 6), n = ph.length;
-  const rows: number[] = portrait ? (n >= 6 ? [2, 2, 2] : n === 5 ? [1, 2, 2] : n === 4 ? [2, 2] : [1, Math.max(1, n - 1)]) : (n >= 6 ? [3, 3] : n === 5 ? [2, 3] : n === 4 ? [2, 2] : [1, Math.max(1, n - 1)]);
-  const cells: { x: number; y: number; w: number; h: number }[] = [], rh = (H - g * (rows.length - 1)) / rows.length; let y = 0;
-  rows.forEach((c) => { const w = (W - g * (c - 1)) / c; for (let k = 0; k < c; k++) cells.push({ x: k * (w + g), y, w, h: rh }); y += rh + g; });
-  return <AbsoluteFill style={{ background: palette.bg }}>
-    {ph.map((p, i) => cells[i] && <Cell key={i} ph={p} dur={dur} {...cells[i]} delay={i * 5} dir={i % 2 ? -1 : 1} from={i % 2 ? 't' : 'b'} accent={a} fs={portrait ? 30 : 28} strength={0.8} />)}
     <Bug scene={scene} /><Label text={data.label} a={a} />
   </AbsoluteFill>;
 };

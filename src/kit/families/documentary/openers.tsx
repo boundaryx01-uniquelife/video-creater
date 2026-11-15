@@ -3,12 +3,12 @@ import { AbsoluteFill, useCurrentFrame } from 'remotion';
 import { accentOf } from '../../context';
 import { LivePhoto, fitFont, glide, useLayout, wob } from '../../motion';
 import type { PartProps } from '../../schema.ts';
-import { BottomScrim, Bug, Cell, DarkBase, Montage, Rise, SCRIM, Tag, useDoc } from './common';
+import { Bug, DarkBase, Montage, BottomScrim, Rise, SCRIM, Tag, useDoc } from './common';
 
 const lines = (t: string) => t.split('\n');
 
 /** 표지 글 블록: 태그 + 세리프 제목 + 부제 + 정보 줄 */
-const TitleBlock: React.FC<{ kicker?: string; title: string; sub?: string; chips?: string[]; accent: string; bottom: number; maxW: number; size: number }> = ({ kicker, title, sub, chips, accent, bottom, maxW, size }) => {
+export const TitleBlock: React.FC<{ kicker?: string; title: string; sub?: string; chips?: string[]; accent: string; bottom: number; maxW: number; size: number }> = ({ kicker, title, sub, chips, accent, bottom, maxW, size }) => {
   const f = useCurrentFrame(), { palette, serif, sans } = useDoc(), { PAD, portrait } = useLayout(), ls = lines(title).slice(0, 2), longest = Math.max(...ls.map((l) => Array.from(l).length), 1), fs = Math.min(size, fitFont('가'.repeat(longest), size, maxW, 1.02));
   return <div style={{ position: 'absolute', left: PAD, bottom, width: maxW, transform: `translateY(${wob(f, 1, 4)}px)`, zIndex: 15 }}>
     {kicker && <div style={{ marginBottom: fs * 0.28 }}><Tag text={kicker} accent={accent} size={Math.max(22, fs * 0.3)} delay={6} /></div>}
@@ -18,32 +18,6 @@ const TitleBlock: React.FC<{ kicker?: string; title: string; sub?: string; chips
       {chips.slice(0, 4).map((c, i) => <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: fs * 0.42 }}>{i > 0 && <span style={{ width: 2, height: fs * 0.3, background: accent }} />}{c}</span>)}
     </div>}
   </div>;
-};
-
-export const OpenerTitle: React.FC<PartProps<'opener.title'>> = ({ data, photos, dur, scene }) => {
-  const { palette } = useDoc(), { W, H, portrait, PAD } = useLayout(), a = accentOf(palette, Math.max(0, scene.section)), f = useCurrentFrame(), bottom = portrait ? H * 0.15 : H * 0.12;
-  const content = <TitleBlock kicker={data.kicker} title={data.title} sub={data.sub} chips={data.chips} accent={a} bottom={bottom} maxW={portrait ? W - PAD * 2 : W * 0.66} size={portrait ? 104 : 118} />;
-  if (!photos.length) return <DarkBase accent={a}><Bug scene={scene} />{content}</DarkBase>;
-  return <AbsoluteFill style={{ background: palette.bg }}>
-    <Montage photos={photos.slice(0, 3)} dur={dur} />
-    <BottomScrim strength={0.82} h={portrait ? 0.7 : 0.8} />
-    <div style={{ position: 'absolute', left: 0, bottom: 0, height: 8, width: '100%', background: a, transformOrigin: 'left', transform: `scaleX(${glide(f, 0, 30)})` }} />
-    <Bug scene={scene} />{content}
-  </AbsoluteFill>;
-};
-
-export const OpenerCollage: React.FC<PartProps<'opener.collage'>> = ({ data, photos, dur, scene }) => {
-  const { palette } = useDoc(), { W, H, portrait, PAD } = useLayout(), a = accentOf(palette, Math.max(0, scene.section)), n = photos.length, f = useCurrentFrame();
-  const gap = 6, cells = photos.slice(0, 6).map((p, i) => {
-    if (portrait) { const h = (H - gap * (n - 1)) / n; return { p, x: 0, y: i * (h + gap), w: W, h, i }; }
-    const w = (W - gap * (n - 1)) / n; return { p, x: i * (w + gap), y: 0, w, h: H, i };
-  });
-  return <AbsoluteFill style={{ background: palette.bg }}>
-    {cells.map((c) => <Cell key={c.i} ph={c.p} dur={dur} x={c.x} y={c.y} w={c.w} h={c.h} delay={c.i * 5} dir={c.i % 2 ? -1 : 1} from={portrait ? 'l' : c.i % 2 ? 't' : 'b'} caption={false} accent={a} fs={26} />)}
-    <BottomScrim strength={0.85} h={portrait ? 0.5 : 0.7} />
-    <Bug scene={scene} />
-    <TitleBlock kicker={data.kicker} title={data.title} sub={data.sub} accent={a} bottom={portrait ? H * 0.15 : H * 0.12} maxW={portrait ? W - PAD * 2 : W * 0.7} size={portrait ? 108 : 124} />
-  </AbsoluteFill>;
 };
 
 export const SectionTitle: React.FC<PartProps<'section.title'>> = ({ data, photos, dur, scene }) => {

@@ -1,7 +1,9 @@
 import type { StyleFamily } from '../../schema.ts';
 import { DataList, DataNumbers, DataSchedule } from './data';
-import { OpenerCollage, OpenerTitle, OutroThanks, SectionTitle } from './openers';
-import { PhotoFull, PhotoGrid, PhotoPair, PhotoSide, PhotoStrip, PhotoTrio } from './photos';
+import { OutroThanks, SectionTitle } from './openers';
+import { OpenerCollage, OpenerTitle } from './cold';
+import { PhotoGrid, PhotoTrio } from './board';
+import { PhotoFull, PhotoPair, PhotoSide, PhotoStrip } from './photos';
 import { TextQuote, TextStatement } from './texts';
 
 /** 계열: 다큐 — 사진이 화면을 채우고 하단 자막·챕터 카드·현장 시각 스탬프로 진행하는 뉴스 피처/기록 영상 */
