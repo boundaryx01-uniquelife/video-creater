@@ -6,7 +6,7 @@ import { Brand, Dusk, Frame, Hair, KB, Leak, Rise, SERIF, Scrim, Tiny, WORD, fit
 /** 꽉 찬 한 장: 초점이 맺히듯 시작해 천천히 다가가고, 글은 아주 작게 아래에 */
 export const PhotoFull: React.FC<PartProps<'photo.full'>> = ({ data, photos, dur, scene }) => {
   const e = useLy(scene), { W, H, PAD, portrait, f, p, fonts, ac } = e, ph = photos[0];
-  const cw = W - 2 * PAD - (portrait ? 0 : W * 0.3), cs = data.caption ? Math.min(portrait ? 62 : 58, fitBox([data.caption], cw, portrait ? 220 : 140, portrait ? 62 : 58, 1.3)) : 0;
+  const cw = W - 2 * PAD - (portrait ? 0 : W * 0.3), cs = data.caption ? Math.min(portrait ? 64 : 60, fitBox([data.caption], cw, portrait ? 240 : 150, portrait ? 64 : 60, 1.3)) : 0;
   const blur = (1 - sp(f, 0, 26)) * 9;
   return <div style={{ position: 'absolute', inset: 0, background: p.ink }}>
     {ph && <div style={{ position: 'absolute', inset: 0, filter: blur > 0.1 ? `blur(${blur}px)` : undefined, transform: 'scale(1.0)' }}><KB ph={ph} dur={dur} amt={0.08} base={1.02} /></div>}
@@ -17,7 +17,7 @@ export const PhotoFull: React.FC<PartProps<'photo.full'>> = ({ data, photos, dur
     <div style={{ position: 'absolute', left: PAD, right: PAD, bottom: PAD * (portrait ? 1.5 : 0.95) }}>
       {data.chip && <Rise d={14}><div style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 22 }}><div style={{ width: 56 }}><Hair d={14} color={p.onAccent} op={0.8} /></div><Tiny size={portrait ? 22 : 20} color={p.onAccent} fonts={fonts} track={0.34} style={{ opacity: 0.92 }}>{data.chip}</Tiny></div></Rise>}
       {data.caption && <Rise d={22} dur={34}><div style={{ fontFamily: fonts.display, fontWeight: SERIF, fontSize: cs, lineHeight: 1.3, letterSpacing: '-0.01em', color: p.onAccent, ...WORD }}>{data.caption}</div></Rise>}
-      {data.sub && <Rise d={32} dur={34}><div style={{ marginTop: 14, fontFamily: fonts.body, fontWeight: 400, fontSize: portrait ? 26 : 24, letterSpacing: '0.1em', color: p.onAccent, opacity: 0.82, ...WORD }}>{data.sub}</div></Rise>}
+      {data.sub && <Rise d={32} dur={34}><div style={{ marginTop: 14, fontFamily: fonts.body, fontWeight: 400, fontSize: portrait ? 32 : 28, letterSpacing: '0.06em', color: p.onAccent, opacity: 0.9, ...WORD }}>{data.sub}</div></Rise>}
     </div>
   </div>;
 };
@@ -38,7 +38,7 @@ export const PhotoSide: React.FC<PartProps<'photo.side'>> = ({ data, photos, dur
       {data.chip && <Rise d={12}><Tiny size={portrait ? 22 : 20} color={p.onAccent} fonts={fonts} track={0.34} style={{ opacity: 0.85, marginBottom: 28 }}>{data.chip}</Tiny></Rise>}
       {data.caption && <Rise d={18} dur={36} dy={22}><div style={{ fontFamily: fonts.display, fontWeight: SERIF, fontSize: cs, lineHeight: 1.38, letterSpacing: '-0.015em', color: p.onAccent, ...WORD }}>{data.caption}</div></Rise>}
       <div style={{ width: 70, margin: '32px 0 26px' }}><Hair d={30} color={p.onAccent} op={0.65} /></div>
-      {data.sub && <Rise d={34}><div style={{ fontFamily: fonts.body, fontWeight: 400, fontSize: portrait ? 28 : 26, letterSpacing: '0.08em', lineHeight: 1.6, color: p.onAccent, opacity: 0.85, ...WORD }}>{data.sub}</div></Rise>}
+      {data.sub && <Rise d={34}><div style={{ fontFamily: fonts.body, fontWeight: 400, fontSize: portrait ? 34 : 30, letterSpacing: '0.05em', lineHeight: 1.6, color: p.onAccent, opacity: 0.85, ...WORD }}>{data.sub}</div></Rise>}
     </div>
   </div>;
 };
@@ -65,8 +65,8 @@ export const PhotoPair: React.FC<PartProps<'photo.pair'>> = ({ data, photos, dur
     <Leak at="tl" color={ac} op={0.26} size={0.6} screen />
     <Frame ph={a} dur={dur} x={ax} y={ay} w={A.w} h={A.h} d={4} dx={-12} dy={-6} />
     <Frame ph={b} dur={dur} x={bx} y={by} w={B.w} h={B.h} d={26} dx={14} dy={8} dir={-1} />
-    <div style={{ position: 'absolute', left: ax, top: ay + A.h + 24, width: A.w }}><Cap ph={a} d={20} color={p.onAccent} size={portrait ? 30 : 28} fonts={fonts} /></div>
-    <div style={{ position: 'absolute', left: bx, top: by - (portrait ? 0 : 0) + B.h + 24, width: B.w }}><Cap ph={b} d={42} color={p.onAccent} size={portrait ? 30 : 28} fonts={fonts} align={portrait ? 'right' : 'left'} /></div>
+    <div style={{ position: 'absolute', left: ax, top: ay + A.h + 24, width: A.w }}><Cap ph={a} d={20} color={p.onAccent} size={portrait ? 36 : 32} fonts={fonts} /></div>
+    <div style={{ position: 'absolute', left: bx, top: by - (portrait ? 0 : 0) + B.h + 24, width: B.w }}><Cap ph={b} d={42} color={p.onAccent} size={portrait ? 36 : 32} fonts={fonts} align={portrait ? 'right' : 'left'} /></div>
     {data.label && <div style={{ position: 'absolute', left: PAD, top: PAD * 0.8, display: 'flex', alignItems: 'center', gap: 20 }}><div style={{ width: 48 }}><Hair d={6} color={p.onAccent} op={0.8} /></div><Rise d={6}><Tiny size={portrait ? 22 : 20} color={p.onAccent} fonts={fonts} track={0.4}>{data.label}</Tiny></Rise></div>}
     <Brand scene={scene} color={p.onAccent} style={{ right: PAD, top: PAD * 0.7 }} />
   </div>;
@@ -76,7 +76,7 @@ export const PhotoPair: React.FC<PartProps<'photo.pair'>> = ({ data, photos, dur
 export const PhotoTrio: React.FC<PartProps<'photo.trio'>> = ({ data, photos, dur, scene }) => {
   const e = useLy(scene), { W, H, PAD, portrait, f, p, fonts, ac } = e, L = life(f, dur);
   const bgT = (i: number) => (i === 0 ? 1 : sp(f, 22 + i * 24, 40));
-  const caps = (ph: KPhoto, d: number, x: number, y: number, w: number, al: 'left' | 'right' = 'left') => <div style={{ position: 'absolute', left: x, top: y, width: w }}><Cap ph={ph} d={d} color={p.onAccent} size={portrait ? 28 : 26} fonts={fonts} align={al} /></div>;
+  const caps = (ph: KPhoto, d: number, x: number, y: number, w: number, al: 'left' | 'right' = 'left') => <div style={{ position: 'absolute', left: x, top: y, width: w }}><Cap ph={ph} d={d} color={p.onAccent} size={portrait ? 34 : 30} fonts={fonts} align={al} /></div>;
   const items: React.ReactNode[] = [];
   if (!portrait) {
     const hs = [H * 0.46, H * 0.62, H * 0.5], gap = PAD * 0.7, sz = photos.map((ph, i) => fit(ph.aspect, W * 0.36, hs[i])), tot = sz.reduce((a, s) => a + s.w, 0) + gap * 2;
@@ -148,7 +148,7 @@ export const PhotoStrip: React.FC<PartProps<'photo.strip'>> = ({ data, photos, d
       const dist = clamp(Math.abs(c - span / 2) / (span * 0.5), 0, 1);
       return <React.Fragment key={i}>
         <div style={{ position: 'absolute', left: x, top: y, width: s.w, height: s.h, opacity: enter, transform: `scale(${1 - 0.1 * dist})`, boxShadow: '0 40px 90px -24px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.14)', borderRadius: 3, overflow: 'hidden' }}><KB ph={ph} dur={dur} amt={0.06} dir={i % 2 ? -1 : 1} /></div>
-        {(ph.caption || ph.time) && <div style={{ position: 'absolute', left: x, top: y + s.h + 22, width: s.w, opacity: enter * (1 - dist * 0.6) }}><Cap ph={ph} d={0} color={p.onAccent} size={portrait ? 28 : 26} fonts={fonts} /></div>}
+        {(ph.caption || ph.time) && <div style={{ position: 'absolute', left: x, top: y + s.h + 22, width: s.w, opacity: enter * (1 - dist * 0.6) }}><Cap ph={ph} d={0} color={p.onAccent} size={portrait ? 34 : 30} fonts={fonts} /></div>}
       </React.Fragment>;
     })}
     {data.label && <div style={{ position: 'absolute', left: PAD, top: PAD * 0.8, display: 'flex', alignItems: 'center', gap: 20, zIndex: 4 }}><div style={{ width: 48 }}><Hair d={6} color={p.onAccent} op={0.8} /></div><Rise d={6}><Tiny size={portrait ? 22 : 20} color={p.onAccent} fonts={fonts} track={0.4}>{data.label}</Tiny></Rise></div>}

@@ -44,9 +44,10 @@ export const Hair: React.FC<{ d: number; dur?: number; color: string; w?: number
 };
 
 /** 자간 넓은 작은 글(라벨) */
-export const Tiny: React.FC<{ size: number; color: string; fonts: { body: string }; children: React.ReactNode; style?: React.CSSProperties; track?: number }> = ({ size, color, fonts, children, style, track = 0.3 }) => (
-  <div style={{ fontFamily: fonts.body, fontWeight: 400, fontSize: size, letterSpacing: `${track}em`, color, lineHeight: 1.4, whiteSpace: 'nowrap', ...style }}>{children}</div>
-);
+export const Tiny: React.FC<{ size: number; color: string; fonts: { body: string }; children: React.ReactNode; style?: React.CSSProperties; track?: number }> = ({ size, color, fonts, children, style, track = 0.3 }) => {
+  const { portrait } = useLayout(), s = Math.max(size, portrait ? 30 : 26);
+  return <div style={{ fontFamily: fonts.body, fontWeight: 400, fontSize: s, letterSpacing: `${Math.min(track, 0.22)}em`, color, lineHeight: 1.4, whiteSpace: 'nowrap', ...style }}>{children}</div>;
+};
 
 /** 칩 → 점으로 이어진 작은 한 줄 */
 export const Chips: React.FC<{ items?: string[]; d: number; size: number; color: string; fonts: { body: string }; style?: React.CSSProperties }> = ({ items, d, size, color, fonts, style }) => {
@@ -62,7 +63,7 @@ export const Chips: React.FC<{ items?: string[]; d: number; size: number; color:
 export const Brand: React.FC<{ scene: SceneInfo; color: string; style?: React.CSSProperties }> = ({ scene, color, style }) => {
   const { fonts } = useKit(), f = useCurrentFrame();
   if (!scene.brand) return null;
-  return <Tiny size={18} color={color} fonts={fonts} track={0.36} style={{ position: 'absolute', opacity: 0.7 * sp(f, 16, 30), zIndex: 5, ...style }}>{scene.brand}</Tiny>;
+  return <Tiny size={26} color={color} fonts={fonts} track={0.2} style={{ position: 'absolute', opacity: 0.7 * sp(f, 16, 30), zIndex: 5, ...style }}>{scene.brand}</Tiny>;
 };
 
 /** 천천히 다가가는 사진(1.00→1.08 안팎). 가장자리가 드러나지 않게 이동폭을 제한 */

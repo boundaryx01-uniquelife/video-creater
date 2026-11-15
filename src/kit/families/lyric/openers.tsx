@@ -12,24 +12,25 @@ export const OpenerTitle: React.FC<PartProps<'opener.title'>> = ({ data, photos,
   const ts = fitNW(tl, tW, portrait ? H * 0.2 : H * 0.34, portrait ? 92 : 104, 1.28);
   // 액자 배치: 0번이 가장 크고, 1·2번은 뒤에서 어긋나게 떠오른다
   const rx = portrait ? PAD : W * 0.46, rw = portrait ? W - 2 * PAD : W - rx - PAD, ry = portrait ? PAD * 1.6 : PAD, rh = portrait ? H * 0.46 : H - 2 * PAD;
-  const m = n ? fit(photos[0].aspect, rw * (portrait ? 0.8 : 0.72), rh * (portrait ? 0.8 : 0.8)) : { w: 0, h: 0 };
+  const m = n ? fit(photos[0].aspect, rw * (portrait ? 0.9 : 0.72), rh * (portrait ? 0.62 : 0.8)) : { w: 0, h: 0 };
   const cx = rx + rw / 2, cy = ry + rh / 2;
-  const mx = cx - m.w / 2 + (portrait ? -rw * 0.05 : -rw * 0.04), my = cy - m.h / 2 + (portrait ? rh * 0.04 : rh * 0.03);
-  const s1 = n > 1 ? fit(photos[1].aspect, rw * 0.4, rh * 0.46) : { w: 0, h: 0 }, s2 = n > 2 ? fit(photos[2].aspect, rw * 0.34, rh * 0.4) : { w: 0, h: 0 };
+  const s1 = n > 1 ? fit(photos[1].aspect, rw * (portrait ? 0.46 : 0.4), rh * (portrait ? 0.3 : 0.46)) : { w: 0, h: 0 }, s2 = n > 2 ? fit(photos[2].aspect, rw * (portrait ? 0.4 : 0.34), rh * (portrait ? 0.26 : 0.4)) : { w: 0, h: 0 };
+  const mx = portrait ? (W - m.w) / 2 : cx - m.w / 2 - rw * 0.04, my = portrait ? H * 0.06 + s1.h * 0.5 : cy - m.h / 2 + rh * 0.03;
+  const cl = (x: number, w: number) => (portrait ? Math.max(PAD * 0.5, Math.min(W - PAD * 0.5 - w, x)) : x);
   return <div style={{ position: 'absolute', inset: 0, background: p.bg }}>
     {n > 0 ? <Dusk ph={photos[0]} dur={dur} dim={0.38} /> : <><Leak at="tr" color={ac} op={0.34} size={0.9} /><Leak at="bl" color={p.surface} op={0.9} size={0.8} />
       <div style={{ position: 'absolute', left: W * (portrait ? 0.15 : 0.62), top: H * (portrait ? 0.5 : 0.1), width: W * (portrait ? 0.9 : 0.34), height: W * (portrait ? 0.9 : 0.34), borderRadius: '50%', border: `1px solid ${ac}`, opacity: 0.5 * sp(f, 4, 50), transform: `rotate(${f * 0.05}deg) scale(${1 + 0.04 * life(f, dur)})` }} />
       <div style={{ position: 'absolute', left: W * (portrait ? 0.3 : 0.7), top: H * (portrait ? 0.56 : 0.2), width: W * (portrait ? 0.6 : 0.26), height: W * (portrait ? 0.6 : 0.26), borderRadius: '50%', border: `1px solid ${p.muted}`, opacity: 0.35 * sp(f, 12, 50), transform: `scale(${1 - 0.05 * life(f, dur)})` }} /></>}
-    {n > 2 && <Frame ph={photos[2]} dur={dur} x={mx - s2.w * 0.42} y={my + m.h - s2.h * 0.5} w={s2.w} h={s2.h} d={34} dx={18} dir={-1} />}
-    {n > 1 && <Frame ph={photos[1]} dur={dur} x={mx + m.w - s1.w * 0.4} y={my - s1.h * 0.38} w={s1.w} h={s1.h} d={22} dx={-26} />}
+    {n > 2 && <Frame ph={photos[2]} dur={dur} x={cl(mx - s2.w * 0.42, s2.w)} y={my + m.h - s2.h * 0.5} w={s2.w} h={s2.h} d={34} dx={18} dir={-1} />}
+    {n > 1 && <Frame ph={photos[1]} dur={dur} x={cl(mx + m.w - s1.w * 0.4, s1.w)} y={my - s1.h * (portrait ? 0.5 : 0.38)} w={s1.w} h={s1.h} d={22} dx={-26} />}
     {n > 0 && <Frame ph={photos[0]} dur={dur} x={mx} y={my} w={m.w} h={m.h} d={6} dx={-10} amt={0.08} />}
     {n > 0 && <Leak at="tl" color={ac} op={0.34} size={0.7} screen />}
     <Brand scene={scene} color={mut} style={{ left: PAD * (portrait ? 1 : 1.5), top: PAD * 0.6 }} />
-    <div style={{ position: 'absolute', left: tx, width: tW, ...(portrait ? { top: H * 0.62 } : { top: 0, bottom: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' }) }}>
+    <div style={{ position: 'absolute', left: tx, width: tW, ...(portrait ? { top: H * 0.6 } : { top: 0, bottom: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' }) }}>
       {data.kicker && <Rise d={8}><div style={{ display: 'flex', alignItems: 'center', gap: 22, marginBottom: portrait ? 30 : 38 }}><div style={{ width: 54 }}><Hair d={8} color={ac === ink ? mut : ac} /></div><Tiny size={portrait ? 22 : 21} color={mut} fonts={fonts}>{data.kicker}</Tiny></div></Rise>}
       {tl.map((l, i) => <Rise key={i} d={14 + i * 9} dur={36} dy={22}><div style={{ fontFamily: fonts.display, fontWeight: SERIF, fontSize: ts, lineHeight: 1.28, letterSpacing: '-0.02em', color: ink, whiteSpace: 'nowrap' }}>{l}</div></Rise>)}
       <div style={{ width: portrait ? 90 : 120, margin: `${portrait ? 36 : 44}px 0 ${portrait ? 26 : 32}px` }}><Hair d={34} color={mut} op={0.7} /></div>
-      {data.sub && <Rise d={38} dur={34}><div style={{ fontFamily: fonts.body, fontWeight: 400, fontSize: portrait ? 32 : 30, lineHeight: 1.5, color: mut, opacity: 0.9, letterSpacing: '0.04em', ...WORD }}>{data.sub}</div></Rise>}
+      {data.sub && <Rise d={38} dur={34}><div style={{ fontFamily: fonts.body, fontWeight: 400, fontSize: portrait ? 36 : 32, lineHeight: 1.5, color: mut, opacity: 0.9, letterSpacing: '0.04em', ...WORD }}>{data.sub}</div></Rise>}
       <Chips items={data.chips} d={52} size={portrait ? 22 : 20} color={mut} fonts={fonts} style={{ marginTop: portrait ? 36 : 44 }} />
     </div>
   </div>;
@@ -58,7 +59,7 @@ export const OpenerCollage: React.FC<PartProps<'opener.collage'>> = ({ data, pho
       {data.kicker && <Rise d={12}><Tiny size={portrait ? 24 : 22} color={p.onAccent} fonts={fonts} track={0.42} style={{ opacity: 0.85 }}>{data.kicker}</Tiny></Rise>}
       <div style={{ margin: `${portrait ? 36 : 40}px 0` }}>{tl.map((l, i) => <Rise key={i} d={18 + i * 9} dur={38} dy={22}><div style={{ fontFamily: fonts.display, fontWeight: SERIF, fontSize: ts, lineHeight: 1.25, letterSpacing: '-0.02em', color: p.onAccent, whiteSpace: 'nowrap' }}>{l}</div></Rise>)}</div>
       <div style={{ width: 80 }}><Hair d={40} color={p.onAccent} op={0.7} /></div>
-      {data.sub && <Rise d={48}><div style={{ marginTop: 32, fontFamily: fonts.body, fontWeight: 400, fontSize: portrait ? 30 : 28, letterSpacing: '0.12em', color: p.onAccent, opacity: 0.9, ...WORD }}>{data.sub}</div></Rise>}
+      {data.sub && <Rise d={48}><div style={{ marginTop: 32, fontFamily: fonts.body, fontWeight: 400, fontSize: portrait ? 34 : 30, letterSpacing: '0.1em', color: p.onAccent, opacity: 0.92, ...WORD }}>{data.sub}</div></Rise>}
     </div>
   </div>;
 };
@@ -85,7 +86,7 @@ export const SectionTitle: React.FC<PartProps<'section.title'>> = ({ data, photo
         <Tiny size={20} color={mut} fonts={fonts} track={0.3} style={{ marginLeft: 14, opacity: 0.8 }}>{data.index} / {data.total}</Tiny>
       </div>
       {tl.map((l, i) => <Rise key={i} d={8 + i * 6} dur={30}><div style={{ fontFamily: fonts.display, fontWeight: SERIF, fontSize: ts, lineHeight: 1.25, letterSpacing: '-0.02em', color: ink, whiteSpace: 'nowrap' }}>{l}</div></Rise>)}
-      {data.sub && <Rise d={22}><div style={{ marginTop: 26, fontFamily: fonts.body, fontWeight: 400, fontSize: portrait ? 28 : 26, letterSpacing: '0.1em', color: mut, opacity: 0.9, ...WORD }}>{data.sub}</div></Rise>}
+      {data.sub && <Rise d={22}><div style={{ marginTop: 26, fontFamily: fonts.body, fontWeight: 400, fontSize: portrait ? 34 : 30, letterSpacing: '0.08em', color: mut, opacity: 0.9, ...WORD }}>{data.sub}</div></Rise>}
     </div>
   </div>;
 };
@@ -93,11 +94,12 @@ export const SectionTitle: React.FC<PartProps<'section.title'>> = ({ data, photo
 /** 마무리: 한 장이 화면 가득에서 천천히 물러나며 순간들의 갤러리가 되고, 마지막 한 줄이 놓인다 */
 export const OutroThanks: React.FC<PartProps<'outro.thanks'>> = ({ data, photos, dur, scene }) => {
   const e = useLy(scene), { W, H, PAD, portrait, f, p, fonts, ac } = e, n = photos.length, tl = lines(data.title), L = life(f, dur);
-  const pull = prog3(f, 6, 62);
+  const pull = prog3(f, 2, 44);
   // 최종 갤러리 배치
   const rx = portrait ? PAD : W * 0.44, rw = portrait ? W - 2 * PAD : W - rx - PAD * 1.2, ry = portrait ? PAD * 1.4 : PAD * 1.1, rh = portrait ? H * 0.5 : H - PAD * 2.2;
-  const m = n ? fit(photos[0].aspect, rw * (portrait ? 0.8 : 0.72), rh * (portrait ? 0.74 : 0.76)) : { w: 0, h: 0 };
-  const fx = rx + (portrait ? 0 : rw * 0.02), fy = ry + rh * (portrait ? 0.02 : 0.14);
+  const m = n ? fit(photos[0].aspect, rw * (portrait ? 0.9 : 0.72), rh * (portrait ? 0.62 : 0.76)) : { w: 0, h: 0 };
+  const fx = portrait ? (W - m.w) / 2 : rx + rw * 0.02, fy = portrait ? H * 0.07 : ry + rh * 0.14;
+  const cl = (x: number, w: number) => (portrait ? Math.max(PAD * 0.5, Math.min(W - PAD * 0.5 - w, x)) : x);
   const gx = lerp(0, fx, pull), gy = lerp(0, fy, pull), gw = lerp(W, m.w, pull), gh = lerp(H, m.h, pull);
   const s1 = n > 1 ? fit(photos[1].aspect, rw * 0.34, rh * 0.38) : { w: 0, h: 0 }, s2 = n > 2 ? fit(photos[2].aspect, rw * 0.3, rh * 0.34) : { w: 0, h: 0 };
   const ts = fitNW(tl, portrait ? W - 2 * PAD : W * 0.36, portrait ? H * 0.16 : H * 0.3, portrait ? 84 : 92, 1.3);
@@ -105,18 +107,18 @@ export const OutroThanks: React.FC<PartProps<'outro.thanks'>> = ({ data, photos,
   return <div style={{ position: 'absolute', inset: 0, background: p.ink }}>
     {hasPh ? <Dusk ph={photos[0]} dur={dur} dim={0.46} opacity={pull} /> : <><Leak at="tr" color={ac} op={0.4} size={0.9} screen /><Leak at="bl" color={ac} op={0.25} size={0.8} screen /></>}
     {n > 2 && <div style={{ position: 'absolute', left: fx + m.w * 0.56, top: fy + m.h - s2.h * 0.45, opacity: 0 }} />}
-    {n > 2 && <Frame ph={photos[2]} dur={dur} x={fx + m.w - s2.w * 0.62} y={fy + m.h - s2.h * 0.55} w={s2.w} h={s2.h} d={56} dx={-14} dy={-6} dir={-1} />}
-    {n > 1 && <Frame ph={photos[1]} dur={dur} x={fx - s1.w * 0.34} y={fy + m.h * 0.52} w={s1.w} h={s1.h} d={44} dx={16} dy={-8} z={3} />}
+    {n > 2 && <Frame ph={photos[2]} dur={dur} x={cl(fx + m.w - s2.w * (portrait ? 0.7 : 0.62), s2.w)} y={fy + m.h - s2.h * (portrait ? 0.2 : 0.55)} w={s2.w} h={s2.h} d={30} dx={-14} dy={-6} dir={-1} />}
+    {n > 1 && <Frame ph={photos[1]} dur={dur} x={cl(fx - s1.w * (portrait ? 0.2 : 0.34), s1.w)} y={fy + m.h * (portrait ? 0.78 : 0.52)} w={s1.w} h={s1.h} d={22} dx={16} dy={-8} z={3} />}
     {hasPh && <div style={{ position: 'absolute', left: gx, top: gy, width: gw, height: gh, boxShadow: pull > 0.02 ? undefined : 'none', borderRadius: 3 * pull, overflow: 'hidden', zIndex: 2, filter: 'none' }}>
       <div style={{ position: 'absolute', inset: 0, boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.12)', zIndex: 2 }} /><KB ph={photos[0]} dur={dur} amt={0.1} base={1.0} />
     </div>}
     {hasPh && <div style={{ position: 'absolute', left: gx, top: gy, width: gw, height: gh, boxShadow: `0 40px 90px -24px rgba(0,0,0,${0.6 * pull})`, borderRadius: 3 * pull, zIndex: 1 }} />}
     <Brand scene={scene} color={p.onAccent} style={{ left: PAD * (portrait ? 1 : 1.5), top: PAD * 0.6 }} />
-    <div style={{ position: 'absolute', left: tx, width: tW, zIndex: 6, ...(portrait ? { top: H * 0.66 } : { top: 0, bottom: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' }) }}>
-      <Rise d={hasPh ? 66 : 8} dur={36}><div style={{ width: 54, marginBottom: 34 }}><Hair d={hasPh ? 66 : 8} color={p.onAccent} op={0.7} /></div></Rise>
-      {tl.map((l, i) => <Rise key={i} d={(hasPh ? 70 : 12) + i * 10} dur={40} dy={22}><div style={{ fontFamily: fonts.display, fontWeight: SERIF, fontSize: ts, lineHeight: 1.32, letterSpacing: '-0.02em', color: p.onAccent, whiteSpace: 'nowrap' }}>{l}</div></Rise>)}
-      {data.message && <Rise d={(hasPh ? 92 : 34)} dur={36}><div style={{ marginTop: 34, fontFamily: fonts.body, fontWeight: 400, fontSize: portrait ? 30 : 28, letterSpacing: '0.08em', lineHeight: 1.55, color: p.onAccent, opacity: 0.88, ...WORD }}>{data.message}</div></Rise>}
-      <Chips items={data.chips} d={(hasPh ? 104 : 46)} size={portrait ? 22 : 20} color={p.onAccent} fonts={fonts} style={{ marginTop: 38, opacity: 0.8 }} />
+    <div style={{ position: 'absolute', left: tx, width: tW, zIndex: 6, ...(portrait ? { top: H * 0.62 } : { top: 0, bottom: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' }) }}>
+      <Rise d={hasPh ? 34 : 8} dur={36}><div style={{ width: 54, marginBottom: 34 }}><Hair d={hasPh ? 34 : 8} color={p.onAccent} op={0.7} /></div></Rise>
+      {tl.map((l, i) => <Rise key={i} d={(hasPh ? 38 : 12) + i * 10} dur={40} dy={22}><div style={{ fontFamily: fonts.display, fontWeight: SERIF, fontSize: ts, lineHeight: 1.32, letterSpacing: '-0.02em', color: p.onAccent, whiteSpace: 'nowrap' }}>{l}</div></Rise>)}
+      {data.message && <Rise d={(hasPh ? 58 : 34)} dur={36}><div style={{ marginTop: 34, fontFamily: fonts.body, fontWeight: 400, fontSize: portrait ? 36 : 32, letterSpacing: '0.06em', lineHeight: 1.55, color: p.onAccent, opacity: 0.92, ...WORD }}>{data.message}</div></Rise>}
+      <Chips items={data.chips} d={(hasPh ? 68 : 46)} size={portrait ? 22 : 20} color={p.onAccent} fonts={fonts} style={{ marginTop: 38, opacity: 0.8 }} />
     </div>
     <div style={{ position: 'absolute', inset: 0, background: p.ink, opacity: 0.5 * sp(f, dur - 26, 24), zIndex: 9 }} />
   </div>;

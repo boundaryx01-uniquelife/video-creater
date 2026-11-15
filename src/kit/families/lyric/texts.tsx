@@ -44,7 +44,7 @@ export const TextQuote: React.FC<PartProps<'text.quote'>> = ({ data, photos, dur
       {ql.map((l, i) => <Rise key={i} d={18 + i * 12} dur={38} dy={22}><div style={{ fontFamily: fonts.display, fontWeight: SERIF, fontSize: qs, lineHeight: 1.5, letterSpacing: '-0.015em', color: p.ink, whiteSpace: 'nowrap' }}>{l}</div></Rise>)}
       {(data.who || data.role) && <Rise d={18 + ql.length * 12 + 10}><div style={{ marginTop: 44, display: 'flex', alignItems: 'center', gap: 22, justifyContent: center ? 'center' : 'flex-start' }}>
         <div style={{ width: 54 }}><Hair d={18 + ql.length * 12 + 10} color={ac} /></div>
-        <div>{data.who && <div style={{ fontFamily: fonts.body, fontWeight: 400, fontSize: portrait ? 30 : 28, letterSpacing: '0.12em', color: p.ink }}>{data.who}</div>}
+        <div>{data.who && <div style={{ fontFamily: fonts.body, fontWeight: 400, fontSize: portrait ? 36 : 32, letterSpacing: '0.1em', color: p.ink }}>{data.who}</div>}
           {data.role && <Tiny size={portrait ? 22 : 20} color={p.muted} fonts={fonts} track={0.22} style={{ marginTop: 6 }}>{data.role}</Tiny>}</div>
       </div></Rise>}
     </div>
