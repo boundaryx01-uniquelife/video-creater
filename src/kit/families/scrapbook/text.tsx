@@ -38,29 +38,3 @@ export const TextStatement: React.FC<PartProps<'text.statement'>> = ({ data, dur
   );
 };
 
-/* ---------- text.quote ---------- */
-export const TextQuote: React.FC<PartProps<'text.quote'>> = ({ data, photos, dur, scene }) => {
-  const { P, f, KID, BODY, W, H, PAD, portrait, acc } = useS(scene), ph = photos[0], L = life(f, dur);
-  const d = portrait ? W * 0.5 : H * 0.5, bw = ph ? (portrait ? W - PAD * 2 : W - PAD * 2 - d - 80) : portrait ? W - PAD * 2 : W - PAD * 2 - 200;
-  const padX = portrait ? 56 : 80, padY = portrait ? 60 : 72, availH = ph && portrait ? H * 0.3 : portrait ? H * 0.5 : H * 0.5, fs = fitBox(data.text, portrait ? 84 : 96, bw - padX * 2, availH, 0.95, 1.35);
-  const s = pop(f, 14, 12), who = [data.who, data.role].filter(Boolean).join(' · ');
-  return (
-    <Paper color={tint(acc, P.bg, 10)}>
-      {ph && <div style={{ position: 'absolute', left: portrait ? (W - d) / 2 : PAD, top: portrait ? H * 0.08 : (H - d) / 2, width: d, height: d, transform: `scale(${pop(f, 4, 10)}) translateY(${wob(f, 2, 8)}px)` }}>
-        <div style={{ position: 'absolute', inset: -d * 0.05, borderRadius: '50%', border: `${Math.max(6, d * 0.014)}px dashed ${alpha(acc, 80)}`, transform: `rotate(${-f * 0.5}deg)` }} />
-        <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', overflow: 'hidden', border: `10px solid ${P.surface}`, boxShadow: '0 20px 40px rgba(42,36,64,.2)', boxSizing: 'border-box' }}><LivePhoto ph={ph} dur={dur} strength={1.1} /></div>
-      </div>}
-      <div style={{ position: 'absolute', left: ph ? (portrait ? PAD : PAD + d + 80) : (W - bw) / 2, top: ph ? (portrait ? H * 0.08 + d + 90 : H * 0.5) : H * 0.5, width: bw, transform: `${ph && !portrait ? 'translateY(-50%) ' : ph ? '' : 'translateY(-50%) '}scale(${s * (1 + 0.012 * Math.sin(f / 9))}) rotate(${(1 - s) * -4 + wob(f, 4, 0.8)}deg) translateX(${-10 * L}px)`, transformOrigin: ph && portrait ? 'center top' : 'center' }}>
-        <div style={{ position: 'relative', background: P.surface, border: `6px solid ${P.ink}`, borderRadius: 64, padding: `${padY}px ${padX}px`, boxShadow: `12px 14px 0 ${acc}` }}>
-          <div style={{ position: 'absolute', left: 36, top: -34, fontFamily: KID, fontSize: 150, lineHeight: 1, color: acc }}>“</div>
-          <div style={{ fontFamily: KID, color: P.ink, fontSize: fs, lineHeight: 1.35, whiteSpace: 'pre-wrap', wordBreak: 'keep-all' }}>{data.text}</div>
-          {ph && <div style={{ position: 'absolute', left: portrait ? '50%' : -34, top: portrait ? -30 : '50%', width: 56, height: 56, background: P.surface, borderLeft: `6px solid ${P.ink}`, borderBottom: `6px solid ${P.ink}`, transform: portrait ? 'translateX(-50%) rotate(135deg)' : 'translateY(-50%) rotate(45deg)' }} />}
-          {who && <div style={{ position: 'absolute', right: 44, bottom: -34 }}><Pill text={who} bg={acc} color={P.onAccent} size={portrait ? 36 : 34} /></div>}
-        </div>
-      </div>
-      {!ph && <><Sticker size={110} color={acc} x={W - PAD * 1.1} y={H * 0.16} delay={26} /><Sticker size={64} color={P.accents[(scene.section + 1) % P.accents.length]} x={PAD * 1.1} y={H * 0.84} delay={34} spin={-0.8} seed={3} /></>}
-      <Brand scene={scene} pos="bl" />
-      <div style={{ display: 'none' }}>{BODY}{prog(f, 0, 1)}</div>
-    </Paper>
-  );
-};

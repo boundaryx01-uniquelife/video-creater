@@ -98,25 +98,3 @@ export const SectionTitle: React.FC<PartProps<'section.title'>> = ({ data, photo
   );
 };
 
-/* ---------- outro.thanks ---------- */
-export const OutroThanks: React.FC<PartProps<'outro.thanks'>> = ({ data, photos, dur, scene }) => {
-  const { P, f, KID, BODY, W, H, PAD, portrait, acc, accOf } = useS(scene), ls = lines(data.title, portrait, 9), tw = portrait ? W - PAD * 2 : W * 0.52 - PAD, fs = fitLines(ls, portrait ? 190 : 170, tw, 0.98);
-  const ph = photos.slice(0, 3), chips = data.chips ?? [];
-  const slotsL: Slot[] = [[0.7, 0.24, 520, 380, -6], [0.86, 0.54, 420, 320, 5], [0.68, 0.78, 420, 310, -3]], slotsP: Slot[] = [[0.3, 0.57, 580, 400, -5], [0.7, 0.7, 520, 380, 4], [0.34, 0.86, 480, 330, -3]];
-  const slots = portrait ? slotsP : slotsL;
-  return (
-    <AbsoluteFill style={{ background: acc, backgroundImage: `radial-gradient(${alpha(P.onAccent, 18)} 2.4px, transparent 2.8px)`, backgroundSize: '40px 40px', backgroundPosition: `${f * 0.7}px ${f * 0.35}px`, overflow: 'hidden' }}>
-      <div style={{ position: 'absolute', left: PAD, top: portrait ? H * 0.08 : 0, bottom: portrait ? undefined : 0, width: portrait ? W - PAD * 2 : W * 0.52, display: 'flex', flexDirection: 'column', justifyContent: portrait ? 'flex-start' : 'center', gap: portrait ? 40 : 34, alignItems: portrait ? 'center' : 'flex-start', textAlign: portrait ? 'center' : 'left' }}>
-        <div style={{ fontFamily: KID, color: P.onAccent, fontSize: fs, lineHeight: 1.12, wordBreak: 'keep-all' }}>{ls.map((t, i) => <div key={i} style={{ overflow: 'hidden', paddingBottom: 6, whiteSpace: 'nowrap' }}><div style={{ transform: `translateY(${(1 - prog(f, 4 + i * 5, 16)) * 110}%)` }}>{t}</div></div>)}</div>
-        {data.message && <div style={{ fontFamily: BODY, fontWeight: 800, color: P.onAccent, fontSize: portrait ? 48 : 42, lineHeight: 1.5, opacity: prog(f, 24, 16), whiteSpace: 'pre-wrap', wordBreak: 'keep-all' }}>{data.message}</div>}
-        {chips.length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: portrait ? 'center' : 'flex-start', gap: 16, opacity: prog(f, 34, 14) }}>{chips.map((t, i) => <Pill key={i} text={t} bg={i % 2 ? P.surface : P.ink} color={i % 2 ? P.ink : P.bg} size={portrait ? 38 : 34} />)}</div>}
-      </div>
-      {ph.map((x, i) => { const [cx, cy, mw, mh, rot] = slots[i], b = pfit(x.aspect, mw, mh); return <Polaroid key={i} ph={x} {...b} rot={rot} dur={dur} delay={12 + i * 8} seed={i + 2} tape={alpha(accOf(i + 1), 90)} style={{ left: cx * W - b.ow / 2, top: cy * H - b.oh / 2 }} />; })}
-      {ph.length === 0 && <div style={{ position: 'absolute', left: portrait ? W / 2 - 220 : W * 0.78 - 260, top: portrait ? H * 0.62 : H / 2 - 260, width: 520, height: 520 }}><Star size={500} color={P.surface} style={{ left: 10, top: 10, transform: `rotate(${wob(f, 1, 8)}deg) scale(${pop(f, 10, 9)})` }} /></div>}
-      <Sticker size={portrait ? 100 : 90} color={accOf(scene.section + 1)} x={portrait ? W - PAD : W * 0.93} y={portrait ? H * 0.06 : H * 0.1} delay={30} />
-      <Sticker size={56} color={P.surface} x={portrait ? PAD : W * 0.56} y={portrait ? H * 0.5 : H * 0.92} delay={38} spin={-0.8} seed={3} />
-      <Brand scene={scene} pos="bl" onPhoto />
-      <div style={{ display: 'none' }}>{dur}{glide(f, 0)}</div>
-    </AbsoluteFill>
-  );
-};

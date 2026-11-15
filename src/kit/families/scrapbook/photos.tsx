@@ -45,38 +45,6 @@ export const PhotoFull: React.FC<PartProps<'photo.full'>> = ({ data, photos, dur
   );
 };
 
-/* ---------- photo.side ---------- */
-export const PhotoSide: React.FC<PartProps<'photo.side'>> = ({ data, photos, dur, scene }) => {
-  const { P, f, KID, BODY, PAD, W, H, portrait, acc } = useS(scene), x = photos[0];
-  const hasText = !!(data.caption || data.sub);
-  const b = portrait ? pfit(x.aspect, W - PAD * 2.4, H * 0.5) : pfit(x.aspect, x.aspect >= 1 ? (hasText ? 960 : 1200) : 640, 760);
-  const tx0 = PAD * 1.1 + b.ow + 70;
-  return (
-    <Page scene={scene} dur={dur}>
-      <Polaroid ph={x} iw={b.iw} ih={b.ih} rot={-2.4} dur={dur} delay={6} seed={scene.index} tape={alpha(acc, 85)} style={portrait ? { left: (W - b.ow) / 2, top: H * 0.17 } : { left: hasText ? PAD * 1.1 : (W - b.ow) / 2, top: (H - b.oh) / 2 - 10 }} />
-      {hasText && <div style={{ position: 'absolute', ...(portrait ? { left: PAD, right: PAD, top: H * 0.17 + b.oh + 80, textAlign: 'center' as const } : { left: tx0, right: PAD, top: H * 0.5, transform: `translateY(-50%) translateY(${wob(f, 3, 5)}px)` }) }}>
-        {data.chip && <div style={{ transform: `scale(${pop(f, 16)})`, transformOrigin: portrait ? 'center' : 'left' }}><Pill text={data.chip} bg={acc} color={P.onAccent} size={34} /></div>}
-        {data.caption && <div style={{ marginTop: 26, fontFamily: KID, color: P.ink, fontSize: portrait ? Math.min(96, (W - PAD * 2) / Math.max(3, [...data.caption].length / 1.6)) : capSize(data.caption, W - tx0 - PAD), lineHeight: 1.22, wordBreak: 'keep-all', textWrap: 'balance', transform: `translateY(${(1 - prog(f, 14, 16)) * 40}px)`, opacity: prog(f, 14, 12) }}>{data.caption}</div>}
-        {data.sub && <div style={{ marginTop: 18, fontFamily: BODY, fontWeight: 600, color: P.muted, opacity: prog(f, 22, 14), fontSize: portrait ? 38 : 38, lineHeight: 1.4, wordBreak: 'keep-all' }}>{data.sub}</div>}
-      </div>}
-      <Sticker size={portrait ? 90 : 80} color={acc} x={portrait ? W - PAD - 20 : tx0 + 30} y={portrait ? H * 0.17 + 10 : H * 0.16} delay={24} />
-    </Page>
-  );
-};
-
-/* ---------- photo.pair ---------- */
-export const PhotoPair: React.FC<PartProps<'photo.pair'>> = ({ data, photos, dur, scene }) => {
-  const { f, W, H, PAD, portrait, P } = useS(scene), [x, y] = photos, hasCap = !!(capOf(x) || capOf(y));
-  const A = portrait ? pfit(x.aspect, W * 0.74, H * 0.33, hasCap) : pfit(x.aspect, 840, 640, hasCap), B = portrait ? pfit(y.aspect, W * 0.74, H * 0.33, hasCap) : pfit(y.aspect, 840, 640, hasCap);
-  const gap = 60, x0 = (W - (A.ow + B.ow + gap)) / 2, mid = H / 2;
-  return (
-    <Page scene={scene} label={data.label} dur={dur}>
-      <Polaroid ph={x} {...A} rot={-3.5} dur={dur} delay={6} seed={1} cap={capOf(x)} tape={tapes(P, 0)} style={portrait ? { left: PAD, top: H * 0.15 } : { left: x0, top: mid - A.oh / 2 - 30 }} />
-      <Polaroid ph={y} {...B} rot={3} dur={dur} delay={16} seed={2} cap={capOf(y)} tape={tapes(P, 1)} style={portrait ? { right: PAD, top: H * 0.53 } : { left: x0 + A.ow + gap, top: mid - B.oh / 2 + 40 }} />
-    </Page>
-  );
-};
-
 /* ---------- photo.trio ---------- */
 export const PhotoTrio: React.FC<PartProps<'photo.trio'>> = ({ data, photos, dur, scene }) => {
   const { W, H, PAD, portrait, P } = useS(scene), [x, y, z] = photos, hasCap = photos.some((p) => capOf(p));

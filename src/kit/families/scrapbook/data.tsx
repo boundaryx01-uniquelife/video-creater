@@ -66,32 +66,3 @@ export const DataSchedule: React.FC<PartProps<'data.schedule'>> = ({ data, dur, 
   );
 };
 
-/* ---------- data.list ---------- */
-export const DataList: React.FC<PartProps<'data.list'>> = ({ data, dur, scene }) => {
-  const { P, f, KID, BODY, W, H, PAD, portrait, acc, accOf } = useS(scene), items = data.items.slice(0, 40), L = life(f, dur);
-  const regionTop = portrait ? H * 0.2 : H * 0.27, regionH = H - regionTop - (portrait ? PAD * 1.2 : PAD * 0.9), regionW = W - PAD * 2;
-  // 글자 크기를 줄여 가며 한 줄 흐름 배치를 흉내 내어 상자에 들어가는 최대 크기를 찾는다
-  const sim = (fs: number) => { const g = fs * 0.4, wid = (t: string) => [...t].length * fs * 0.98 + fs * 1.4 + 6; let rows = 1, x = 0; for (const t of items) { const w = wid(t); if (x > 0 && x + g + w > regionW) { rows++; x = w; } else x += (x > 0 ? g : 0) + w; } return rows * (fs * 1.75 + g) - g; };
-  let fs = portrait ? 96 : 84; while (fs > 26 && sim(fs) > regionH) fs -= 2;
-  const total = sim(fs), over = Math.max(0, total - regionH), scroll = over * prog(f, 28, Math.max(30, dur - 60), (t) => t);
-  const tfs = Math.min(portrait ? 130 : 120, (W - PAD * 2 - 140) / (Math.max([...(data.title ?? '')].length, 1) * 0.98));
-  return (
-    <Paper color={tint(acc, P.bg, 12)}>
-      <div style={{ position: 'absolute', left: PAD, right: PAD, top: portrait ? PAD * 1.1 : H * 0.08, display: 'flex', alignItems: 'baseline', gap: 28, flexWrap: 'wrap', transform: `translateY(${(1 - pop(f, 2)) * 60}px)` }}>
-        {data.title && <div style={{ fontFamily: KID, fontSize: tfs, color: P.ink, lineHeight: 1.1, whiteSpace: 'nowrap', background: `linear-gradient(transparent 62%, ${alpha(acc, 80)} 62%, ${alpha(acc, 80)} 92%, transparent 92%)`, padding: '0 8px' }}>{data.title}</div>}
-        {data.sub && <Pill text={data.sub} bg={P.ink} color={P.bg} size={portrait ? 36 : 32} />}
-        <Pill text={`${items.length}`} bg={acc} color={P.onAccent} size={portrait ? 36 : 32} />
-      </div>
-      <div style={{ position: 'absolute', left: PAD, width: regionW, top: regionTop, height: regionH, overflow: over > 0 ? 'hidden' : 'visible', WebkitMaskImage: over > 0 ? 'linear-gradient(transparent 0, #000 4%, #000 96%, transparent 100%)' : undefined }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', alignContent: 'flex-start', gap: fs * 0.4, transform: `translateY(${-scroll}px)` }}>
-          {items.map((t, i) => {
-            const s = pop(f, 6 + Math.min(i * 1.4, 34), 12), c = accOf(scene.section + i);
-            return <div key={i} style={{ fontFamily: KID, fontSize: fs, lineHeight: 1.15, whiteSpace: 'nowrap', color: P.ink, background: i % 3 === 0 ? tint(c, P.surface, 30) : P.surface, border: `3px solid ${P.ink}`, borderRadius: 999, padding: `${fs * 0.2}px ${fs * 0.65}px`, boxShadow: `4px 5px 0 ${c}`, transform: `scale(${s}) rotate(${(i % 2 ? 1.4 : -1.4) * s + wob(f, i, 0.8)}deg) translateY(${wob(f, i * 3, 2.5)}px)`, opacity: clamp(s * 2, 0, 1) }}>{t}</div>;
-          })}
-        </div>
-      </div>
-      <Brand scene={scene} pos="bl" />
-      <div style={{ display: 'none' }}>{L}{BODY}</div>
-    </Paper>
-  );
-};

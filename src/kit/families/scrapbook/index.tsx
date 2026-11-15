@@ -1,8 +1,9 @@
 import type { StyleFamily } from '../../schema.ts';
-import { DataList, DataNumbers, DataSchedule } from './data';
-import { OpenerCollage, OpenerTitle, OutroThanks, SectionTitle } from './openers';
-import { PhotoFull, PhotoGrid, PhotoPair, PhotoSide, PhotoStrip, PhotoTrio } from './photos';
-import { TextQuote, TextStatement } from './text';
+import { DataNumbers, DataSchedule } from './data';
+import { DataList, OutroThanks, PhotoPair, PhotoSide, TextQuote } from './crafted';
+import { OpenerCollage, OpenerTitle, SectionTitle } from './openers';
+import { PhotoFull, PhotoGrid, PhotoStrip, PhotoTrio } from './photos';
+import { TextStatement } from './text';
 
 /** 계열: 스크랩북 — 종이 바탕 + 폴라로이드 + 테이프, 둥근 글꼴, 통통 튀는 등장 */
 export const family: StyleFamily = {
