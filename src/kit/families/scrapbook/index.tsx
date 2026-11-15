@@ -1,11 +1,21 @@
 import type { StyleFamily } from '../../schema.ts';
-import { stubParts } from '../stub';
+import { DataList, DataNumbers, DataSchedule } from './data';
+import { OpenerCollage, OpenerTitle, OutroThanks, SectionTitle } from './openers';
+import { PhotoFull, PhotoGrid, PhotoPair, PhotoSide, PhotoStrip, PhotoTrio } from './photos';
+import { TextQuote, TextStatement } from './text';
 
-/** 계열: 스크랩북 — 작업 전 자리표시. 이 폴더 안의 파일만 고친다 */
+/** 계열: 스크랩북 — 종이 바탕 + 폴라로이드 + 테이프, 둥근 글꼴, 통통 튀는 등장 */
 export const family: StyleFamily = {
-  id: 'scrapbook', label: '스크랩북', note: '',
-  palette: { bg: '#f5f1e8', surface: '#ffffff', ink: '#1f1d24', muted: '#6b6670', accents: ['#c96a4b', '#3d7bd9', '#2f9e74'], onAccent: '#ffffff' },
-  fonts: { display: "'Pretendard','Noto Sans KR',sans-serif", body: "'Pretendard','Noto Sans KR',sans-serif" },
-  transitions: ['slide'],
-  parts: stubParts('#c96a4b'),
+  id: 'scrapbook', label: '스크랩북',
+  note: '아이들·가족·동아리처럼 따뜻하고 손맛 나는 기록(학교 활동, 체험학습, 돌잔치, 여행 앨범)을 사진 중심으로 가볍고 귀엽게 보여 줄 때 어울립니다.',
+  palette: { bg: '#f8f2e4', surface: '#fffdf8', ink: '#2a2440', muted: '#6d6680', accents: ['#ffb824', '#3d9bff', '#ff6b57', '#2fb67c', '#8f6bff'], onAccent: '#2a2440' },
+  fonts: { display: "'Jua','Pretendard','Noto Sans KR',sans-serif", body: "'Pretendard','Noto Sans KR',sans-serif" },
+  transitions: ['slide', 'blinds', 'up', 'iris'],
+  parts: {
+    'opener.title': OpenerTitle, 'opener.collage': OpenerCollage, 'section.title': SectionTitle,
+    'photo.full': PhotoFull, 'photo.side': PhotoSide, 'photo.pair': PhotoPair, 'photo.trio': PhotoTrio, 'photo.grid': PhotoGrid, 'photo.strip': PhotoStrip,
+    'text.statement': TextStatement, 'text.quote': TextQuote,
+    'data.numbers': DataNumbers, 'data.schedule': DataSchedule, 'data.list': DataList,
+    'outro.thanks': OutroThanks,
+  },
 };
