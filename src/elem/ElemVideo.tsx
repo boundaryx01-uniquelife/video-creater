@@ -47,6 +47,8 @@ const Polaroid: React.FC<{ ph: PhotoSpec | { src: string; fx?: number; fy?: numb
   );
 };
 
+/** 한 장짜리 화면의 자막 크기: 짧으면 한 줄, 길면 두 줄로 나뉘는 것을 전제로 크게 잡는다(띄어쓰기에서 줄바꿈) */
+const capSize = (text: string, width: number) => { const n = [...text].length; return n <= 7 ? Math.min(112, width / (n * 0.95)) : Math.min(104, Math.max(70, width / (Math.ceil(n / 2) * 1.0 + 0.5))); };
 /** 사진 비율을 상자(maxW×maxH) 안에 맞춘 안쪽 크기 */
 const fit = (aspect: number, maxW: number, maxH: number) => { const a = clamp(aspect || 1.5, 0.6, 2.2), w = Math.min(maxW, maxH * a); return { iw: Math.round(w), ih: Math.round(w / a) }; };
 
@@ -138,7 +140,7 @@ const Page: React.FC<{ p: ElemProps; ci: number; idx: number[]; no: number; of: 
         <Polaroid ph={x} iw={iw} ih={ih} rot={-2.4} f={f} delay={6} style={{ left: hasText ? PAD * 1.1 : (W - pw) / 2, top: (H - ih) / 2 - 10 }} tape={`${col}cc`} />
         {hasText && <div style={{ position: 'absolute', left: PAD * 1.1 + pw + 70, right: PAD, top: H * 0.34 }}>
           {chip && <div style={{ transform: `scale(${pop(f, 16)})`, transformOrigin: 'left' }}><Pill text={chip} bg={col} size={34} /></div>}
-          {text && <div style={{ marginTop: 26, fontFamily: KID, color: T.ink, fontSize: Math.max(66, fitFont(text, 108, W - PAD * 2.2 - pw - 70, 0.9)), lineHeight: 1.2, transform: `translateY(${(1 - prog(f, 14, 16)) * 40}px)`, opacity: prog(f, 14, 12) }}>{text}</div>}
+          {text && <div style={{ marginTop: 26, fontFamily: KID, color: T.ink, fontSize: capSize(text, W - PAD * 2.2 - pw - 70), lineHeight: 1.22, wordBreak: 'keep-all', textWrap: 'balance', transform: `translateY(${(1 - prog(f, 14, 16)) * 40}px)`, opacity: prog(f, 14, 12) }}>{text}</div>}
           {sub && <div style={{ marginTop: 18, fontFamily: BODY, fontWeight: 600, color: T.ink, opacity: 0.7 * prog(f, 22, 14), fontSize: 38, lineHeight: 1.4 }}>{sub}</div>}
         </div>}
       </>;
@@ -250,7 +252,7 @@ const Outro: React.FC<{ p: ElemProps }> = ({ p }) => {
         </div>
         <div style={{ fontFamily: BODY, fontWeight: 800, color: T.ink, fontSize: portrait ? 48 : 42, lineHeight: 1.5, opacity: prog(f, 24, 16), whiteSpace: 'pre-wrap' }}>{p.outro.message}</div>
         <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: portrait ? 'center' : 'flex-start', gap: 16, opacity: prog(f, 34, 14) }}>
-          <Pill text={p.klass ? `${p.school} ${p.klass}` : p.school} bg={T.ink} color={T.paper} size={portrait ? 38 : 34} /><Pill text={p.day} bg="#fff" color={T.ink} size={portrait ? 38 : 34} />
+          <Pill text={p.klass ? `${p.school} ${p.klass}` : p.school} bg={T.ink} color={T.paper} size={portrait ? 38 : 34} />{p.day && <Pill text={p.day} bg="#fff" color={T.ink} size={portrait ? 38 : 34} />}
         </div>
       </div>
       {!portrait && pick.map((x, i) => { const a = fit(x.aspect, [520, 400, 400][i], [380, 300, 300][i]); return <Polaroid key={i} ph={x} iw={a.iw} ih={a.ih} rot={[-6, 5, -3][i]} f={f} delay={12 + i * 8} drift={0} style={{ left: [W * 0.58, W * 0.74, W * 0.6][i], top: [H * 0.08, H * 0.34, H * 0.58][i] }} tape={['rgba(255,107,87,.8)', 'rgba(61,155,255,.8)', 'rgba(143,107,255,.8)'][i]} />; })}

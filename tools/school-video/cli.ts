@@ -46,6 +46,23 @@ async function decode(file: string): Promise<sharp.Sharp> {
     return sharp(Buffer.from(data.buffer), { raw: { width: w, height: h, channels: 4 } });
   }
 }
+/** 사진 둘레에 이미 들어 있는 단색 테두리(캡처·SNS 저장본)를 찾아 잘라낸다. 같은 색이 4변 중 3변 이상에서 확인될 때만, 한 변은 최대 20%까지(스튜디오 src/studio/image.ts 와 같은 기준) */
+async function trimBorder(s: sharp.Sharp): Promise<sharp.Sharp> {
+  try {
+    const meta = await s.clone().toBuffer({ resolveWithObject: true }).then((r) => r.info), W = meta.width, H = meta.height;
+    const { data, info } = await s.clone().resize(320, 320, { fit: 'inside' }).removeAlpha().raw().toBuffer({ resolveWithObject: true }), w = info.width, h = info.height, TOL = 14;
+    const px = (i: number, j: number) => { const k = (j * w + i) * 3; return [data[k], data[k + 1], data[k + 2]]; };
+    const same = (i: number, j: number, r: number[]) => { const c = px(i, j); return Math.abs(c[0] - r[0]) <= TOL && Math.abs(c[1] - r[1]) <= TOL && Math.abs(c[2] - r[2]) <= TOL; };
+    const run = (len: number, cross: number, at: (n: number, k: number) => [number, number], ref: number[]) => { let n = 0; for (; n < len * 0.2; n++) for (let k = 0; k < cross; k++) { const [i, j] = at(n, k); if (!same(i, j, ref)) return n; } return n; };
+    const refs = [px(w >> 1, 0), px(w >> 1, h - 1), px(0, h >> 1), px(w - 1, h >> 1)];
+    const n = [run(h, w, (n, k) => [k, n], refs[0]), run(h, w, (n, k) => [k, h - 1 - n], refs[1]), run(w, h, (n, k) => [n, k], refs[2]), run(w, h, (n, k) => [w - 1 - n, k], refs[3])];
+    const found = [0, 1, 2, 3].filter((i) => n[i] >= 2); if (found.length < 3) return s;
+    const r0 = refs[found[0]]; if (!found.every((i) => Math.abs(refs[i][0] - r0[0]) <= 24 && Math.abs(refs[i][1] - r0[1]) <= 24 && Math.abs(refs[i][2] - r0[2]) <= 24)) return s;
+    const to = (v: number, len: number, L: number) => (v >= 2 ? Math.round((v - 1) / len * L) + 2 : 0), t = to(n[0], h, H), b = to(n[1], h, H), l = to(n[2], w, W), r = to(n[3], w, W);
+    if (W - l - r < W * 0.5 || H - t - b < H * 0.5) return s;
+    return sharp(await s.clone().extract({ left: l, top: t, width: W - l - r, height: H - t - b }).toBuffer());
+  } catch { return s; }
+}
 /** 선명도(라플라시안)·노출 점수 0~1. 스튜디오(src/studio/image.ts)와 같은 계산 */
 async function quality(s: sharp.Sharp): Promise<number> {
   const { data, info } = await s.clone().resize(192, 192, { fit: 'inside' }).greyscale().raw().toBuffer({ resolveWithObject: true }), w = info.width, h = info.height;
@@ -65,10 +82,10 @@ async function ingest() {
   if (!fs.existsSync(src)) die(`사진 폴더가 없습니다: ${src}`);
   const files = fs.readdirSync(src).filter((f) => IMG.test(f)).sort(); if (!files.length) die('폴더에 사진(JPG·PNG·WebP·HEIC)이 없습니다.');
   fs.mkdirSync(path.join(out, 'media'), { recursive: true }); fs.mkdirSync(path.join(out, 'sheets'), { recursive: true });
-  const raw: (Omit<Lib, 'id' | 'file' | 'dupOf' | 'blurry'> & { tmp: Buffer })[] = [], failed: string[] = [];
+  const raw: (Omit<Lib, 'id' | 'file' | 'dupOf' | 'blurry'> & { tmp: Buffer })[] = [], failed: string[] = []; let borders = 0;
   for (const [k, f] of files.entries()) {
     try {
-      const full = path.join(src, f), s = await decode(full);
+      const full = path.join(src, f), s0 = await decode(full), s = await trimBorder(s0), trimmed = s !== s0; if (trimmed) borders++;
       let when: Date | null = null; try { const ex = await exifr.parse(fs.readFileSync(full), { pick: ['DateTimeOriginal', 'CreateDate'] } as any); const d = ex?.DateTimeOriginal ?? ex?.CreateDate; if (d instanceof Date && !isNaN(+d)) when = d; } catch { /* EXIF 없음 */ }
       const { data, info } = await s.clone().resize(2560, 2560, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 90 }).toBuffer({ resolveWithObject: true });
       raw.push({ name: f, tmp: data, w: info.width, h: info.height, aspect: +(info.width / info.height).toFixed(3), q: await quality(s), hash: await dhash(s), ts: when ? +when : null,
@@ -110,7 +127,7 @@ async function ingest() {
   const specFile = path.join(out, 'spec.json'); if (fs.existsSync(specFile) && !flag('force')) console.error('  spec.json 이 이미 있어 그대로 둡니다(새로 만들려면 --force). 초안은 spec.draft.json 에 씁니다.');
   fs.writeFileSync(fs.existsSync(specFile) && !flag('force') ? path.join(out, 'spec.draft.json') : specFile, JSON.stringify(spec, null, 1));
   console.log(`사진 ${lib.length}장을 읽었습니다${failed.length ? ` (읽지 못한 파일 ${failed.length}개: ${failed.slice(0, 5).join(', ')})` : ''}.`);
-  console.log(`촬영: ${first ? `${first.date} (${first.wd})` : '날짜 정보 없음'} · 시각 없는 사진 ${lib.filter((p) => !p.time).length}장 · 비슷한 사진 표시 ${lib.filter((p) => p.dupOf).length}장 · 흐림 표시 ${lib.filter((p) => p.blurry).length}장`);
+  console.log(`촬영: ${first ? `${first.date} (${first.wd})` : '날짜 정보 없음'} · 시각 없는 사진 ${lib.filter((p) => !p.time).length}장 · 비슷한 사진 표시 ${lib.filter((p) => p.dupOf).length}장 · 흐림 표시 ${lib.filter((p) => p.blurry).length}장${borders ? ` · 테두리 잘라낸 사진 ${borders}장` : ''}`);
   console.log(`활동 초안 ${groups.length}개: ` + groups.map((g, i) => `${names[i]}(${rangeOf(g) || '시각 없음'}, #${idOf.get(g[0].src)}–#${idOf.get(g[g.length - 1].src)}, ${g.length}장)`).join(' / '));
   console.log(`모아보기: ${path.join(out, 'sheets')}/sheet-01.jpg … sheet-${z(sheets)}.jpg (${sheets}장) — 이 이미지를 보고 사진을 고르세요. 한 장을 크게 보려면 ${path.join(out, 'media')}/NNN.jpg`);
   console.log(`초안 구성: ${specFile} (목표 ${brief.targetSec}초, ${brief.aspect}, 색 ${brief.theme}) — 사진을 본 뒤 고쳐서 build 하세요.`);
