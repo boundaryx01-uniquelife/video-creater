@@ -133,6 +133,7 @@ const folderTitle = (f: string) => [...f.replace(/^[\d\s._\-)\]]+/, '').trim() |
 async function ingest() {
   const src = path.resolve(args[1] ?? die('사진 폴더를 지정하세요: ingest <사진 폴더> --out <작업 폴더>')), out = path.resolve(opt('out') || die('--out <작업 폴더> 가 필요합니다'));
   if (!fs.existsSync(src)) die(`사진 폴더(또는 zip 파일)가 없습니다: ${src}`);
+  if (fs.existsSync(path.join(out, 'photos.json')) && !flag('force')) die(`작업 폴더에 이미 읽어 둔 사진이 있습니다: ${out}\n  같은 영상을 이어서 고치려면 ingest 없이 build·stills·render를 쓰세요. 다른 영상이면 --out 을 다른 폴더로 주고, 사진을 처음부터 다시 읽으려면 --force 를 붙이세요(사진 번호가 바뀌어 기존 spec.json 과 어긋날 수 있습니다).`);
   let root = src;
   if (fs.statSync(src).isFile()) { if (!/\.zip$/i.test(src)) die('폴더나 .zip 파일을 지정하세요.'); root = path.join(out, 'source'); console.error('  zip 푸는 중…'); try { await unzipTo(src, root); } catch (e) { die(`zip을 풀지 못했습니다: ${(e as Error).message}`); } }
   const found = walkSource(root), files = found.photos; if (!files.length) die(`사진(JPG·PNG·WebP·HEIC)이 없습니다.${found.videos ? ` 동영상 ${found.videos}개만 있습니다(동영상은 아직 다루지 못합니다).` : ''}`);
