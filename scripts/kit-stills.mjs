@@ -17,6 +17,7 @@ const fam = args[0]; if (!fam || fam.startsWith('--')) { console.error('계열 i
 const parts = opt('parts') ? opt('parts').split(',') : PART_IDS, vert = flag('vertical'), at = Number(opt('at', '0.55'));
 const out = path.resolve(opt('out') || path.join(os.tmpdir(), `kit-${fam}${vert ? '-v' : ''}`)); fs.mkdirSync(out, { recursive: true });
 const serveUrl = await bundle({ entryPoint: path.join(ROOT, 'src/remotion/index.ts'), publicDir: path.join(ROOT, 'public') });
+process.on('exit', () => { try { fs.rmSync(serveUrl, { recursive: true, force: true }); } catch {} }); // 임시 번들 정리(디스크 누수 방지)
 const tw = vert ? 270 : 480, th = vert ? 480 : 270, LB = 30, cols = vert ? 6 : 4, comps = [];
 for (const [k, part] of parts.entries()) {
   const s = SAMPLE_PART[part]; if (!s) { console.error('없는 부품:', part); continue; }

@@ -28,6 +28,7 @@ for (const f of families) {
 for (const p of parts) if (!PART_IDS.includes(p)) throw new Error('없는 부품: ' + p);
 
 const serveUrl = await bundle({ entryPoint: path.join(ROOT, 'src/remotion/index.ts'), publicDir: path.join(ROOT, 'public') });
+process.on('exit', () => { try { fs.rmSync(serveUrl, { recursive: true, force: true }); } catch {} }); // 임시 번들 정리(디스크 누수 방지)
 const total = families.length * parts.length * ORIENT.length;
 let n = 0;
 const shots = {}; // family -> part -> { h: [rel], v: [rel] }
