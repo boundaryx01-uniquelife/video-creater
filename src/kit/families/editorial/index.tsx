@@ -1,7 +1,8 @@
 import type { StyleFamily } from '../../schema.ts';
 import { DataList, DataNumbers, DataSchedule } from './data';
 import { OpenerCollage, OpenerTitle, OutroThanks } from './openers';
-import { PhotoFull, PhotoGrid, PhotoPair, PhotoSide, PhotoStrip, PhotoTrio, SectionTitle } from './photos';
+import { PhotoGrid, PhotoTrio, SectionTitle } from './photos';
+import { PhotoFull, PhotoPair, PhotoSide, PhotoStrip } from './spreads';
 import { TextQuote, TextStatement } from './texts';
 
 /** 계열: 에디토리얼 — 잡지 표지·학교 안내 영상처럼 비대칭 격자, 큰 명조 제목과 작은 본문의 대비, 헤어라인과 마스크 등장 */

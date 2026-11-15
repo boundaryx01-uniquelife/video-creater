@@ -1,29 +1,52 @@
 import React from 'react';
 import type { PartProps } from '../../schema.ts';
-import { Brand, Folio, Pic, Rise, Rule, drift, ep, fitBox, lines, useEd } from './kit';
+import { Brand, Folio, NUM, Pic, Rise, Rule, drift, ep, fitBox, fitNW, lines, tw, useEd } from './kit';
 
 const WORD: React.CSSProperties = { wordBreak: 'keep-all' };
 
+/** 한 줄을 (세로 화면에서) 단어 경계 기준으로 균형 있게 둘로 나눈다 */
+const balance = (l: string, max: number) => {
+  const ws = l.split(' ');
+  if (ws.length < 2 || tw(l) <= max) return [l];
+  let best = 1, bd = 1e9;
+  for (let i = 1; i < ws.length; i++) { const d = Math.abs(tw(ws.slice(0, i).join(' ')) - tw(ws.slice(i).join(' '))); if (d < bd) { bd = d; best = i; } }
+  return [ws.slice(0, best).join(' '), ws.slice(best).join(' ')];
+};
+
+/** 큰 문장: 강조줄은 크고 기울인 명조, 나머지는 작은 정자체, 한 단어는 강조색 + 형광 띠 */
 export const TextStatement: React.FC<PartProps<'text.statement'>> = ({ data, dur, scene }) => {
-  const e = useEd(scene), { W, H, PAD, portrait, f, p, fonts, ac } = e, ls = data.lines.slice(0, 3), n = ls.length, em = data.emphasis;
-  const hasE = typeof em === 'number' && em >= 0 && em < n, ind = (i: number) => i * W * (portrait ? 0.035 : 0.055);
-  const sizes = ls.map((l, i) => {
-    const w = W - 2 * PAD - ind(i);
-    if (!hasE) return fitBox([l], w, (H * 0.62) / n, portrait ? 150 : 190, 1.14);
-    return i === em ? fitBox([l], w, H * (portrait ? 0.3 : 0.36), portrait ? 190 : 230, 1.12) : fitBox([l], w, H * (portrait ? 0.11 : 0.14), portrait ? 80 : 92, 1.2);
-  });
-  const uni = hasE ? sizes : sizes.map(() => Math.min(...sizes));
-  return <div style={{ position: 'absolute', inset: 0, background: p.bg }}>
-    <div style={{ position: 'absolute', left: PAD, right: PAD, top: PAD * 1.15 }}><Rule d={0} dur={36} color={p.ink} th={2} /></div>
-    <Brand scene={scene} style={{ left: PAD, top: PAD * 1.15 + 22 }} />
-    <Folio scene={scene} style={{ right: PAD, top: PAD * 1.15 + 22 }} />
-    <div style={{ position: 'absolute', left: PAD, right: PAD, bottom: PAD * 1.1, display: 'flex', flexDirection: 'column', gap: portrait ? 20 : 14 }}>
-      {ls.map((l, i) => {
-        const isE = hasE && i === em, dx = drift(f, dur, 36) * (i % 2 ? -1 : 1) * 0.5;
-        return <div key={i} style={{ marginLeft: ind(i), transform: `translateX(${dx}px)` }}><Rise d={4 + i * 5} dur={22}>
-          <div style={{ fontFamily: fonts.display, fontWeight: isE || !hasE ? 900 : 500, fontSize: uni[i], lineHeight: 1.14, letterSpacing: '-0.035em', color: isE ? ac : p.ink, ...WORD }}>{l}</div>
-        </Rise></div>;
-      })}
+  const e = useEd(scene), { W, H, PAD, portrait, f, p, fonts, ac } = e, ls = data.lines.slice(0, 3), n = ls.length;
+  const em = typeof data.emphasis === 'number' && data.emphasis >= 0 && data.emphasis < n ? data.emphasis : ls.reduce((b, l, i) => (tw(l) > tw(ls[b]) ? i : b), 0);
+  const eLines = balance(ls[em], portrait ? 7.5 : 8), words = ls[em].split(' ');
+  const hiW = words.reduce((b, w) => (tw(w) > tw(b) ? w : b), words[0]);
+  const bw0 = W - 2 * PAD, ghost = Array.from(ls[em].replace(/\s/g, ''))[0] ?? '';
+  const es = fitNW(eLines, bw0, portrait ? H * 0.34 : H * 0.5, portrait ? 230 : 270, 1.04);
+  const small = (l: string) => fitBox([l], bw0 * (portrait ? 1 : 0.7), portrait ? H * 0.08 : H * 0.12, portrait ? 80 : 104, 1.2);
+  const before = ls.slice(0, em), after = ls.slice(em + 1), sp = ep(f, 0, 30), L = f / dur;
+  const row = (l: string, i: number, kind: 'b' | 'a') => <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 28, marginLeft: kind === 'a' ? (portrait ? 0 : W * 0.12) : 0 }}>
+    <Rise d={4 + i * 4}><span style={{ fontFamily: fonts.body, ...NUM, fontSize: 26, fontWeight: 700, letterSpacing: '0.1em', color: ac }}>{String.fromCharCode(65 + i)}</span></Rise>
+    <Rise d={6 + i * 4} dur={22}><div style={{ fontFamily: fonts.display, fontStyle: kind === 'b' ? 'italic' : 'normal', fontWeight: kind === 'b' ? 500 : 900, fontSize: small(l), lineHeight: 1.2, letterSpacing: '-0.03em', color: kind === 'b' ? p.muted : p.ink, ...WORD, whiteSpace: portrait ? 'normal' : 'nowrap' }}>{l}</div></Rise>
+  </div>;
+  const hiOf = (txt: string) => {
+    const parts = txt.split(hiW);
+    return <>{parts.map((pt, i) => <React.Fragment key={i}>{pt}{i < parts.length - 1 && <span style={{ position: 'relative', color: ac, display: 'inline-block' }}>
+      <span style={{ position: 'absolute', left: '-2%', right: '-2%', bottom: '6%', height: '30%', background: ac, opacity: 0.2, transformOrigin: 'left', transform: `scaleX(${ep(f, 22, 22)})` }} />
+      <span style={{ position: 'relative' }}>{hiW}</span></span>}</React.Fragment>)}</>;
+  };
+  return <div style={{ position: 'absolute', inset: 0, background: p.bg, overflow: 'hidden' }}>
+    <div style={{ position: 'absolute', right: portrait ? -W * 0.08 : W * 0.02, bottom: portrait ? H * 0.02 : -H * 0.12, fontFamily: fonts.display, fontStyle: 'italic', fontWeight: 900, fontSize: portrait ? H * 0.5 : H * 1.25, lineHeight: 1, color: p.surface, opacity: 0.9 * sp, transform: `translateX(${-L * 40}px) scale(${1 + L * 0.05})`, transformOrigin: 'right bottom', whiteSpace: 'nowrap' }}>{ghost}</div>
+    <div style={{ position: 'absolute', left: PAD, right: PAD, top: PAD * 0.8 }}><Rule d={0} dur={36} color={p.ink} th={2} /></div>
+    <div style={{ position: 'absolute', left: PAD, top: PAD * 0.8 + 18, right: PAD, display: 'flex', justifyContent: 'space-between' }}>
+      <Brand scene={scene} style={{ position: 'static' }} />
+      <Folio scene={scene} style={{ position: 'static' }} />
+    </div>
+    <div style={{ position: 'absolute', left: PAD, right: PAD, top: PAD * 1.8, bottom: PAD * 1.1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: portrait ? 36 : 26, transform: `translateY(${drift(f, dur, 14)}px)` }}>
+      {before.map((l, i) => row(l, i, 'b'))}
+      <div style={{ position: 'relative' }}>
+        <div style={{ position: 'absolute', left: -PAD * 0.45, top: '6%', width: 8, height: '88%', background: ac, transformOrigin: 'top', transform: `scaleY(${ep(f, 10, 26)})` }} />
+        {eLines.map((l, i) => <Rise key={i} d={8 + i * 5} dur={26}><div style={{ fontFamily: fonts.display, fontStyle: 'italic', fontWeight: 900, fontSize: es, lineHeight: 1.08, letterSpacing: '-0.04em', color: p.ink, whiteSpace: 'nowrap' }}>{words.length > 1 ? hiOf(l) : <span style={{ color: ac }}>{l}</span>}</div></Rise>)}
+      </div>
+      {after.map((l, i) => row(l, before.length + 1 + i, 'a'))}
     </div>
   </div>;
 };

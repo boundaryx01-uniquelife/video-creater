@@ -1,6 +1,6 @@
 import React from 'react';
 import type { KPhoto, PartProps } from '../../schema.ts';
-import { Brand, Kicker, Pic, Rise, Rule, drift, ep, fitNW, lines, useEd } from './kit';
+import { Brand, Kicker, NUM, Pic, Rise, Rule, drift, ep, fitNW, lines, pad2, useEd } from './kit';
 
 type Ed = ReturnType<typeof useEd>;
 
@@ -84,24 +84,62 @@ export const OpenerCollage: React.FC<PartProps<'opener.collage'>> = ({ data, pho
   </div>;
 };
 
+/* ───────────── outro.thanks : 잡지 뒷표지·판권면 ───────────── */
+type OR = { k: 'ph' | 'ac'; r: [number, number, number, number] };
+const OL: Record<number, OR[]> = {
+  3: [{ k: 'ph', r: [.52, 0, .27, .64] }, { k: 'ph', r: [.79, .14, .21, .5] }, { k: 'ph', r: [.52, .64, .34, .36] }, { k: 'ac', r: [.86, .64, .14, .36] }, { k: 'ac', r: [.79, 0, .21, .14] }],
+  2: [{ k: 'ph', r: [.52, 0, .3, 1] }, { k: 'ph', r: [.82, .22, .18, .78] }, { k: 'ac', r: [.82, 0, .18, .22] }],
+  1: [{ k: 'ph', r: [.52, 0, .48, .78] }, { k: 'ac', r: [.52, .78, .48, .22] }],
+  0: [{ k: 'ac', r: [.52, 0, .48, 1] }],
+};
+const OP: Record<number, OR[]> = {
+  3: [{ k: 'ph', r: [0, 0, .58, .26] }, { k: 'ph', r: [.58, 0, .42, .4] }, { k: 'ph', r: [0, .26, .58, .14] }],
+  2: [{ k: 'ph', r: [0, 0, .6, .4] }, { k: 'ph', r: [.6, 0, .4, .4] }],
+  1: [{ k: 'ph', r: [0, 0, 1, .4] }],
+  0: [{ k: 'ac', r: [0, 0, 1, .4] }],
+};
+
 export const OutroThanks: React.FC<PartProps<'outro.thanks'>> = ({ data, photos, dur, scene }) => {
-  const e = useEd(scene), { W, H, PAD, portrait, f, p, fonts, ac } = e, tl = lines(data.title), n = Math.min(3, photos.length);
-  const gx = portrait ? 0 : Math.round(W * 0.5), gh = portrait ? Math.round(H * 0.42) : H, gw = W - gx, cw = gw / Math.max(1, n);
-  const tw0 = portrait ? W - 2 * PAD : gx - PAD - 60, th0 = portrait ? H - gh - PAD * 2 - 330 : H * 0.5;
-  const ts = fitNW(tl, tw0, th0, portrait ? 150 : 150, 1.1), dr = drift(f, dur, 12);
-  return <div style={{ position: 'absolute', inset: 0, background: p.bg }}>
-    {n === 0 ? <Panel e={e} x={gx} y={0} w={gw} h={gh} big={tl[0]} dur={dur} /> : photos.slice(0, n).map((ph, i) => {
-      const off = n === 1 ? 0 : i % 2 ? (portrait ? 56 : 150) : 0, hh = n === 1 ? gh : gh - (portrait ? 56 : 150);
-      return <Pic key={i} ph={ph} dur={dur} dir={i % 2 ? -1 : 1} d={i * 6} from={i % 2 ? 't' : 'b'} x={gx + i * cw + (i ? 5 : 0)} y={off} w={cw - (n > 1 ? 5 : 0)} h={hh} />;
+  const e = useEd(scene), { W, H, PAD, portrait, f, p, fonts, ac } = e, tl = lines(data.title), n = Math.min(3, photos.length), rects = (portrait ? OP : OL)[n];
+  const paper = p.bg, g = 5, dr = drift(f, dur, 12);
+  const tx = PAD, tw0 = portrait ? W - 2 * PAD : W * 0.52 - PAD - 70, top = portrait ? H * 0.4 + PAD * 0.9 : PAD * 1.3;
+  const chips = (data.chips ?? []).slice(0, 4), seed = Array.from(data.title).reduce((a, c) => a + c.charCodeAt(0), 7);
+  const ts = fitNW(tl, tw0, portrait ? H * 0.26 : H * 0.34, portrait ? 150 : 128, 1.08);
+  let pi = 0;
+  const bars = Array.from({ length: 34 }, (_, i) => ({ w: 2 + ((seed * (i + 3) * 7) % 5), gap: 3 + ((seed + i * 5) % 4) }));
+  return <div style={{ position: 'absolute', inset: 0, background: p.ink, overflow: 'hidden' }}>
+    {rects.map((q, i) => {
+      const [x, y, w, h] = q.r, X = x * W + g, Y = y * H + g, Wd = w * W - 2 * g, Ht = h * H - 2 * g;
+      if (q.k === 'ph') { const ph = photos[pi++]; return <Pic key={i} ph={ph} dur={dur} dir={i % 2 ? -1 : 1} d={2 + i * 5} from={i % 2 ? 't' : 'b'} x={X} y={Y} w={Wd} h={Ht} />; }
+      const t = ep(f, 6 + i * 4, 26);
+      return <div key={i} style={{ position: 'absolute', left: X, top: Y, width: Wd, height: Ht, background: ac, clipPath: `inset(${(1 - t) * 100}% 0 0 0)`, overflow: 'hidden' }}>
+        {i === rects.length - 1 && n > 0 && !portrait && <div style={{ position: 'absolute', left: 28, bottom: 12, fontFamily: fonts.display, fontStyle: 'italic', fontWeight: 900, fontSize: Math.min(Wd, Ht) * 0.5, color: p.onAccent, opacity: 0.95, whiteSpace: 'nowrap' }}>Fin.</div>}
+        {n === 0 && <div style={{ position: 'absolute', left: '8%', bottom: '-4%', fontFamily: fonts.display, fontStyle: 'italic', fontWeight: 900, fontSize: Math.min(Wd, Ht) * 0.6, color: p.onAccent, opacity: 0.2, whiteSpace: 'nowrap', transform: `scale(${1 + (f / dur) * 0.05})`, transformOrigin: 'left bottom' }}>Fin.</div>}
+      </div>;
     })}
-    <Brand scene={scene} style={{ left: PAD, top: PAD * 0.75 }} />
-    <div style={{ position: 'absolute', left: PAD, width: tw0, top: portrait ? gh + PAD * 0.9 : PAD * 2.1, bottom: PAD, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+    <Brand scene={scene} color={paper} style={{ left: PAD, top: PAD * 0.6, opacity: 0.85 }} />
+    <div style={{ position: 'absolute', left: tx, width: tw0, top, bottom: PAD * 0.8, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
       <div style={{ transform: `translateY(${dr}px)` }}>
-        <div style={{ width: 96 * ep(f, 2, 24), height: 10, background: ac, marginBottom: 36 }} />
-        {tl.map((l, i) => <Rise key={i} d={4 + i * 4} dur={22}><div style={{ fontFamily: fonts.display, fontWeight: 900, fontSize: ts, lineHeight: 1.1, letterSpacing: '-0.035em', color: p.ink, whiteSpace: 'nowrap' }}>{l}</div></Rise>)}
-        {data.message && <Rise d={16} style={{ marginTop: 30 }}><div style={{ fontFamily: fonts.body, fontSize: portrait ? 40 : 36, lineHeight: 1.4, color: p.muted, wordBreak: 'keep-all' }}>{data.message}</div></Rise>}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 18, marginBottom: portrait ? 26 : 34 }}>
+          <div style={{ width: 90 * ep(f, 2, 24), height: 8, background: ac }} />
+          <Rise d={4}><span style={{ fontFamily: fonts.display, fontStyle: 'italic', fontWeight: 500, fontSize: portrait ? 40 : 38, color: paper, opacity: 0.85 }}>Fin.</span></Rise>
+        </div>
+        {tl.map((l, i) => <Rise key={i} d={4 + i * 4} dur={22}><div style={{ fontFamily: fonts.display, fontStyle: i === tl.length - 1 && tl.length > 1 ? 'italic' : 'normal', fontWeight: i === tl.length - 1 && tl.length > 1 ? 500 : 900, fontSize: ts, lineHeight: 1.1, letterSpacing: '-0.035em', color: paper, whiteSpace: 'nowrap' }}>{l}</div></Rise>)}
+        {data.message && <Rise d={16} style={{ marginTop: 28 }}><div style={{ fontFamily: fonts.body, fontSize: portrait ? 40 : 36, lineHeight: 1.4, color: paper, opacity: 0.75, wordBreak: 'keep-all' }}>{data.message}</div></Rise>}
       </div>
-      <div style={{ width: portrait ? '100%' : Math.min(tw0, 460) }}><Chips e={e} chips={data.chips} d={24} size={portrait ? 30 : 28} /></div>
+      <div>
+        {chips.length > 0 && <div style={{ display: 'grid', gridTemplateColumns: `repeat(${portrait ? 2 : Math.min(3, chips.length)}, 1fr)`, columnGap: 36, rowGap: 22, marginBottom: 34 }}>
+          {chips.map((c, i) => <div key={i} style={{ minWidth: 0 }}>
+            <Rule d={22 + i * 4} color={paper} th={1.5} style={{ opacity: 0.6 }} />
+            <Rise d={26 + i * 4}><div style={{ marginTop: 10, fontFamily: fonts.body, ...NUM, fontSize: 22, fontWeight: 700, letterSpacing: '0.1em', color: ac }}>{pad2(i + 1)}</div></Rise>
+            <Rise d={28 + i * 4}><div style={{ marginTop: 4, fontFamily: fonts.body, fontSize: portrait ? 32 : 30, fontWeight: 600, color: paper, wordBreak: 'keep-all' }}>{c}</div></Rise>
+          </div>)}
+        </div>}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', opacity: ep(f, 34, 20) }}>
+          <div style={{ fontFamily: fonts.body, ...NUM, fontSize: 22, fontWeight: 500, letterSpacing: '0.08em', color: paper, opacity: 0.7, lineHeight: 1.6 }}>{scene.brand ? <>© {scene.brand}<br /></> : null}N° {pad2(scene.index + 1)} · END</div>
+          <div style={{ display: 'flex', alignItems: 'flex-end', height: 70, background: paper, padding: '8px 12px' }}>{bars.map((b, i) => <div key={i} style={{ width: b.w, height: '100%', background: p.ink, marginRight: b.gap }} />)}</div>
+        </div>
+      </div>
     </div>
   </div>;
 };

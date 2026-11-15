@@ -2,6 +2,7 @@ import React from 'react';
 import { Easing, useCurrentFrame } from 'remotion';
 import { accentOf, useKit } from '../../context';
 import { LivePhoto, prog, useLayout } from '../../motion';
+import { Photo } from '../../../lib/common';
 import type { KPhoto, SceneInfo } from '../../schema.ts';
 
 /** 에디토리얼 공용 도구: 강한 ease-out, 마스크 등장, 헤어라인, 사진 와이프 */
@@ -74,3 +75,26 @@ export const lines = (s: string) => s.split('\n');
 /** 긴 장면에서도 멈춘 느낌이 없도록 천천히 흐르는 값(px) */
 export const drift = (f: number, dur: number, px: number) => -px * (f / Math.max(1, dur));
 export const sty = small;
+
+/** 인쇄 재단선(크롭 마크): 사각형 네 모서리 바깥에 그려지는 짧은 선 */
+export const Crop: React.FC<{ x: number; y: number; w: number; h: number; color: string; len?: number; gap?: number; d?: number; th?: number }> = ({ x, y, w, h, color, len = 30, gap = 12, d = 6, th = 2 }) => {
+  const f = useCurrentFrame(), t = ep(f, d, 24);
+  const L = (lx: number, ly: number, lw: number, lh: number, k: number) => <div key={k} style={{ position: 'absolute', left: lx, top: ly, width: lw, height: lh, background: color, opacity: t }} />;
+  return <>{[
+    L(x - gap - len, y, len, th, 0), L(x, y - gap - len, th, len, 1),
+    L(x + w + gap, y, len, th, 2), L(x + w - th, y - gap - len, th, len, 3),
+    L(x - gap - len, y + h - th, len, th, 4), L(x, y + h + gap, th, len, 5),
+    L(x + w + gap, y + h - th, len, th, 6), L(x + w - th, y + h + gap, th, len, 7),
+  ]}</>;
+};
+
+/** 같은 사진의 한 부분을 크게 잘라 보여 주는 디테일 컷(확대 기준점 ox, oy: 0–1) */
+export const Detail: React.FC<{ ph: KPhoto; dur: number; x: number; y: number; w: number; h: number; d?: number; ox?: number; oy?: number; zoom?: number; border?: string; bw?: number }> = ({ ph, dur, x, y, w, h, d = 0, ox, oy, zoom = 2.3, border, bw = 10 }) => {
+  const f = useCurrentFrame(), t = ep(f, d, 24), L = Math.min(1, f / Math.max(1, dur)), fx = ph.fx ?? 0.5, fy = ph.fy ?? 0.45;
+  const px = (ox ?? (fx < 0.5 ? fx + 0.22 : fx - 0.22)) * 100, py = (oy ?? Math.min(0.75, fy + 0.05)) * 100;
+  return <div style={{ position: 'absolute', left: x - (border ? bw : 0), top: y - (border ? bw : 0), width: w + (border ? 2 * bw : 0), height: h + (border ? 2 * bw : 0), background: border, padding: border ? bw : 0, boxSizing: 'border-box', clipPath: `inset(0 ${(1 - t) * 100}% 0 0)` }}>
+    <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', inset: 0, transform: `scale(${zoom + 0.3 * L})`, transformOrigin: `${px}% ${py}%` }}><Photo src={ph.src} fx={fx} fy={fy} /></div>
+    </div>
+  </div>;
+};
