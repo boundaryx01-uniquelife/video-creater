@@ -23,6 +23,9 @@ import { legsOf } from '../travel/geo.ts';
 import { ModeVideo } from '../modes/ModeVideo';
 import { planMode } from '../modes/video.ts';
 import { ElemVideo } from '../elem/ElemVideo';
+import { ReelVideo, PartPreview, planReel } from '../kit/Reel';
+import { sampleReel, SAMPLE_PART, SAMPLE_PHOTOS } from '../kit/sample.ts';
+import { PART_SPEC } from '../kit/schema.ts';
 import { elemSample } from '../elem/sample.ts';
 import { planElem } from '../elem/types.ts';
 import { siteSample, storeSample, productSample, schoolSample, clubSample, gradSample } from '../modes/samples.ts';
@@ -62,6 +65,8 @@ export const Root: React.FC = () => (
     {([['site', siteSample], ['store', storeSample], ['product', productSample], ['school', schoolSample], ['club', clubSample], ['grad', gradSample]] as const).map(([id, f]) => (
       <Both key={id} id={`${id}-video-sample`} component={ModeVideo} durationInFrames={1} defaultProps={f() as any} calculateMetadata={({ props }) => ({ durationInFrames: planMode(props).total })} />
     ))}
+    <Both id="kit-reel" component={ReelVideo} durationInFrames={1} defaultProps={sampleReel() as any} calculateMetadata={({ props }) => ({ durationInFrames: planReel(props).total })} />
+    <Both id="kit-part" component={PartPreview} durationInFrames={1} defaultProps={{ family: 'scrapbook', part: 'photo.full', data: SAMPLE_PART['photo.full'].data, photos: [SAMPLE_PHOTOS[0]], dur: 84 }} calculateMetadata={({ props }) => ({ durationInFrames: Math.max(1, props.dur || PART_SPEC[props.part as keyof typeof PART_SPEC].dur(props.photos?.length ?? 0)) })} />
     <Both id="elem-video-sample" component={ElemVideo} durationInFrames={1} defaultProps={elemSample() as any} calculateMetadata={({ props }) => ({ durationInFrames: planElem(props).total })} />
     <Both id="recap-intro" component={DataIntro} durationInFrames={150} defaultProps={RECAP.intro as any} />
     <Both id="recap-card" component={RecapCard} durationInFrames={84} />
